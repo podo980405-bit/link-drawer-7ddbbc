@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>링크 서랍</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: a sticky input bar on top, then one shelf per category; each shelf is a grid of thumbnail-first cards. */
+:root {
+  --bg: #f6f6f8;
+  --surface: #ffffff;
+  --fg: #17171c;
+  --muted: #6b6b78;
+  --line: #e3e3ea;
+  --accent: #3d5afe;
+  --accent-soft: #e8ecff;
+  --yt: #e5281f;
+  --ig: #c13584;
+  --danger: #c62828;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111116; --surface: #1b1b22; --fg: #ececf2; --muted: #9a9aa8; --line: #2c2c36;
+    --accent: #8197ff; --accent-soft: #232a4a; --yt: #ff5a4f; --ig: #e46fb0; --danger: #ff6b6b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111116; --surface: #1b1b22; --fg: #ececf2; --muted: #9a9aa8; --line: #2c2c36;
+  --accent: #8197ff; --accent-soft: #232a4a; --yt: #ff5a4f; --ig: #e46fb0; --danger: #ff6b6b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+.search:focus ~ kbd, .search:not(:placeholder-shown) ~ kbd { display: none; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--font-body); }
+img { max-width: 100%; display: block; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+header.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+header.top .wrap { padding-block: 16px; display: grid; gap: 12px; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.brand h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.brand .count { font-family: var(--font-num); color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+.add { display: flex; gap: 8px; align-items: stretch; }
+.add textarea { flex: 1; min-width: 0; resize: vertical; min-height: 46px; max-height: 200px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.add textarea::placeholder { color: var(--muted); }
+.btn { border: 0; border-radius: 10px; padding: 0 18px; min-height: 46px; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 500; min-height: 36px; padding: 0 12px; }
+.btn.ghost:hover { background: var(--surface); }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+.seg button { border: 0; background: transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--muted); font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.searchbox { position: relative; flex: 1 1 320px; min-width: 0; max-width: 460px; }
+.searchbox svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.search { width: 100%; padding: 8px 40px 8px 36px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.search:focus { border-color: var(--accent); }
+.searchbox kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font: 12px var(--font-num); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
+.found { color: var(--muted); font-size: 14px; }
+.found b { color: var(--fg); font-family: var(--font-num); }
+mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 3px; }
+.spacer { flex: 1; }
+.status { color: var(--muted); font-size: 13px; min-height: 1em; }
+
+main .wrap { padding-block: 24px 64px; display: grid; gap: 36px; }
+.jump { display: flex; gap: 6px; flex-wrap: wrap; }
+.jump a { text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); padding: 4px 11px; border-radius: 999px; font-size: 13px; }
+.jump a span { font-family: var(--font-num); color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
+.shelf h2 { margin: 0; font-size: 18px; display: flex; align-items: baseline; gap: 8px; text-wrap: balance; }
+.shelf h2 .n { font-family: var(--font-num); color: var(--muted); font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: var(--line); overflow: hidden; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
+.card:hover .thumb img { transform: scale(1.03); }
+.thumb .ph { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; background: linear-gradient(135deg, #f9a03f, #d62976 50%, #7b3fe4); }
+.badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; color: #fff; }
+.badge.yt { background: var(--yt); }
+.badge.ig { background: var(--ig); }
+.body { padding: 10px 12px 12px; display: grid; gap: 6px; min-width: 0; }
+.title { font-weight: 700; font-size: 14px; line-height: 1.4; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; margin: -3px -5px 0; background: transparent; width: calc(100% + 10px); resize: none; overflow: hidden; display: -webkit-box; }
+.title:hover { border-color: var(--line); }
+.title:focus { border-color: var(--accent); background: var(--bg); }
+.desc { font-size: 13px; line-height: 1.5; color: var(--fg); opacity: .85; border: 1px solid transparent; border-radius: 6px; padding: 3px 5px; margin: 0 -6px; background: transparent; width: calc(100% + 12px); resize: none; overflow: hidden; min-height: 2.2em; }
+.desc::placeholder { color: var(--muted); opacity: .8; }
+.desc:hover { border-color: var(--line); }
+.desc:focus { border-color: var(--accent); background: var(--bg); opacity: 1; }
+.settings { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 13.5px; }
+.settings .line { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings input { flex: 1; min-width: 180px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-family: ui-monospace, monospace; font-size: 13px; }
+.settings ol { margin: 0; padding-left: 20px; color: var(--muted); }
+.settings a { color: var(--accent); }
+.meta { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+.row select { flex: 1; min-width: 0; padding: 4px 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
+.row input { flex: 1; min-width: 0; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--accent); background: var(--bg); font-size: 13px; }
+.card { position: relative; }
+.x { position: absolute; top: 8px; right: 8px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; background: rgba(0,0,0,.55); color: #fff; font-size: 17px; line-height: 1; }
+.x:hover { background: var(--danger); }
+.searchrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.seg.scope { flex-wrap: wrap; border-radius: 14px; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; display: flex; gap: 14px; align-items: center; background: var(--fg); color: var(--bg); padding: 10px 12px 10px 16px; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.25); font-size: 14px; max-width: calc(100% - 32px); }
+.toast button { border: 0; background: transparent; color: var(--accent-soft); font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+.toast button:hover { background: color-mix(in srgb, var(--bg) 15%, transparent); }
+.del { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 13px; }
+.del:hover { color: var(--danger); background: var(--bg); }
+
+.empty { text-align: center; padding: 56px 16px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); display: grid; gap: 12px; justify-items: center; }
+.empty strong { color: var(--fg); font-size: 17px; }
+
+@media (max-width: 560px) {
+  header.top { position: static; }
+  section.shelf { scroll-margin-top: 16px; }
+  .toast { width: calc(100% - 32px); justify-content: space-between; }
+  .add { flex-direction: column; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .search { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) { .thumb img { transition: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span></div>
+    <form class="add" id="addForm">
+      <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
+      <button class="btn" type="submit">정리하기</button>
+    </form>
+    <div class="toolbar">
+      <div class="seg" id="platformSeg" role="group" aria-label="플랫폼">
+        <button type="button" data-p="all" aria-pressed="true">전체</button>
+        <button type="button" data-p="yt" aria-pressed="false">YouTube</button>
+        <button type="button" data-p="ig" aria-pressed="false">Instagram</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn ghost" type="button" id="setBtn" aria-expanded="false">영상 요약 설정</button>
+      <button class="btn ghost" type="button" id="exportBtn">백업 저장</button>
+      <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">백업 불러오기<input type="file" id="importFile" accept="application/json" hidden></label>
+    </div>
+    <div class="searchrow">
+      <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="search" id="q" type="search" placeholder="저장한 링크 검색" aria-label="저장한 링크 검색"><kbd>/</kbd></div>
+      <div class="seg scope" id="scopeSeg" role="group" aria-label="검색 범위">
+        <button type="button" data-s="all" aria-pressed="true">제목+내용+이름</button>
+        <button type="button" data-s="title" aria-pressed="false">제목</button>
+        <button type="button" data-s="desc" aria-pressed="false">내용</button>
+        <button type="button" data-s="author" aria-pressed="false">채널·계정명</button>
+        <button type="button" data-s="td" aria-pressed="false">제목+내용</button>
+      </div>
+    </div>
+    <div class="settings" id="settings" hidden>
+      <strong>유튜브 영상 설명으로 요약 자동 채우기</strong>
+      <span>무료 YouTube API 키를 넣으면 각 영상 설명을 읽어서 무슨 내용인지 짧게 적어 주고, 분류도 더 정확해져요. 키는 이 브라우저에만 저장돼요.</span>
+      <div class="line"><input id="apiKey" type="password" placeholder="AIza로 시작하는 API 키" autocomplete="off"><button class="btn" type="button" id="saveKey" style="min-height:36px">저장</button><button class="btn ghost" type="button" id="clearKey">키 지우기</button></div>
+      <ol>
+        <li><a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">Google Cloud 콘솔</a>에 로그인해서 프로젝트를 하나 만들고 <b>YouTube Data API v3</b>를 <b>사용</b>으로 켜요.</li>
+        <li><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">사용자 인증 정보</a>에서 <b>사용자 인증 정보 만들기 → API 키</b>를 눌러 나온 키를 복사해 위에 붙여넣어요.</li>
+        <li>하루 1만 회까지 무료고, 영상 50개를 한 번에 1회로 처리해서 개인용으로는 돈이 들지 않아요.</li>
+      </ol>
+    </div>
+    <div class="status" id="status" role="status"></div>
+  </div>
+</header>
+
+<main><div class="wrap" id="main"></div></main>
+<div class="toast" id="toast" role="status" hidden><span id="toastMsg"></span><button type="button" id="undoBtn">되돌리기</button></div>
+
+<script>
+(() => {
+const KEY = "link-shelf-v1";
+const UNSORTED = "미분류";
+
+// 카테고리별 키워드. 제목·채널명에서 가장 많이 맞는 카테고리로 분류합니다.
+const RULES = {
+  "음악": ["음악","music","mv","m/v","뮤비","노래","song","cover","커버","playlist","플레이리스트","플리","라이브","live clip","official audio","가사","lyrics","앨범","album","콘서트","concert","kpop","k-pop","피아노","piano","guitar","연주","댄스","dance","안무","choreography","직캠","fancam"],
+  "요리·음식": ["요리","레시피","recipe","cooking","먹방","mukbang","맛집","food","음식","베이킹","baking","카페","cafe","디저트","dessert","집밥","편의점","라면","파스타","치킨","고기","빵","커피","coffee","asmr eating"],
+  "여행": ["여행","travel","trip","투어","tour","호텔","hotel","해외","제주","일본","도쿄","오사카","후쿠오카","유럽","파리","뉴욕","방콕","다낭","캠핑","camping","숙소","항공","공항","airport"],
+  "운동·스포츠": ["운동","workout","헬스","홈트","요가","yoga","필라테스","pilates","다이어트","diet","러닝","running","fitness","스트레칭","stretching","축구","soccer","football","야구","baseball","농구","basketball","골프","golf","sports","스포츠","하이라이트","highlights","등산","클라이밍"],
+  "게임": ["게임","game","gaming","gameplay","롤","lol","리그오브레전드","배그","pubg","마인크래프트","minecraft","발로란트","valorant","스팀","steam","nintendo","닌텐도","스위치","플스","ps5","공략","롤토체스","오버워치","fc온라인","피파"],
+  "공부·자기계발": ["공부","study","강의","lecture","강좌","영어","english","수학","자기계발","독서","책 추천","북리뷰","경제","주식","투자","재테크","부동산","tutorial","튜토리얼","하는 법","하는법","how to","꿀팁","tip","tips","자격증","시험","면접","취업"],
+  "IT·테크": ["아이폰","iphone","갤럭시","galaxy","맥북","macbook","ipad","아이패드","언박싱","unboxing","테크","tech","ai","chatgpt","claude","개발","코딩","coding","programming","프로그래밍","노트북","laptop","키보드","keyboard","카메라","camera","애플","apple","삼성","samsung","스마트폰","gadget"],
+  "뷰티·패션": ["메이크업","makeup","화장","뷰티","beauty","패션","fashion","ootd","코디","스킨케어","skincare","헤어","hair","네일","nail","룩북","lookbook","하울","haul","향수","perfume","올리브영","쿠션","립"],
+  "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","웹툰","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
+  "동물": ["강아지","고양이","냥이","댕댕","멍멍","dog","cat","puppy","kitten","반려","동물","animal","pet","햄스터","앵무새"],
+  "일상·브이로그": ["브이로그","vlog","일상","daily","grwm","루틴","routine","자취","직장인","what i eat","하루"],
+  "유머·밈": ["웃긴","레전드","밈","meme","funny","몰카","prank","짤","ㅋㅋ","개그","코미디","comedy"]
+};
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const MATCHERS = Object.entries(RULES).map(([cat, words]) => [cat, words.map(w =>
+  /^[a-z0-9 .\/-]+$/i.test(w) ? new RegExp("(^|[^a-z0-9])" + reEsc(w) + "($|[^a-z0-9])", "i") : { test: t => t.includes(w) }
+)]);
+
+// 유튜브 자체 카테고리 번호 → 우리 카테고리 (확실한 것만)
+const YT_CAT = { 10: "음악", 20: "게임", 17: "운동·스포츠", 19: "여행", 15: "동물", 27: "공부·자기계발", 28: "IT·테크", 23: "유머·밈", 1: "영화·드라마·예능" };
+
+function classify(text, ytCat) {
+  const t = (text || "").toLowerCase();
+  const hint = YT_CAT[ytCat];
+  if (!t.trim() && !hint) return UNSORTED;
+  let best = UNSORTED, score = 0;
+  for (const [cat, ms] of MATCHERS) {
+    const s = ms.reduce((n, m) => n + (m.test(t) ? 1 : 0), 0) + (cat === hint ? 2 : 0);
+    if (s > score) { score = s; best = cat; }
+  }
+  return best;
+}
+
+function parse(raw) {
+  let u;
+  try { u = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw); } catch { return null; }
+  const host = u.hostname.replace(/^(www|m|music)\./, "");
+  if (host === "youtu.be") {
+    const id = u.pathname.slice(1).split("/")[0];
+    return id ? yt(id, false) : null;
+  }
+  if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    const v = u.searchParams.get("v");
+    if (v) return yt(v, false);
+    const m = u.pathname.match(/^\/(shorts|embed|live|v)\/([\w-]{6,})/);
+    if (m) return yt(m[2], m[1] === "shorts");
+    return null;
+  }
+  if (host === "instagram.com" || host === "instagr.am") {
+    const m = u.pathname.match(/^\/(?:([\w.]+)\/)?(p|reel|reels|tv)\/([\w-]+)/);
+    if (!m) return null;
+    const kind = m[2] === "p" ? "게시물" : "릴스";
+    return { platform: "ig", id: m[3], url: `https://www.instagram.com/${m[2] === "reels" ? "reel" : m[2]}/${m[3]}/`,
+      title: "", author: m[1] ? "@" + m[1] : "", kind, thumb: `https://www.instagram.com/p/${m[3]}/media/?size=l` };
+  }
+  return null;
+  function yt(id, short) {
+    id = id.replace(/[^\w-]/g, "");
+    return { platform: "yt", id, url: short ? `https://www.youtube.com/shorts/${id}` : `https://www.youtube.com/watch?v=${id}`,
+      title: "", author: "", kind: short ? "쇼츠" : "영상", thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+  }
+}
+
+async function fetchInfo(item) {
+  const tries = [
+    `https://noembed.com/embed?url=${encodeURIComponent(item.url)}`,
+    item.platform === "yt" ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(item.url)}` : null
+  ].filter(Boolean);
+  for (const src of tries) {
+    try {
+      const r = await fetch(src);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j && j.title && !j.error) return { title: j.title, author: j.author_name || "", thumb: j.thumbnail_url || "" };
+    } catch {}
+  }
+  return null;
+}
+
+// 영상 설명에서 링크·해시태그·타임스탬프·구독 안내 같은 줄을 빼고 앞부분만 짧게
+function summarize(d) {
+  if (!d) return "";
+  const lines = d.split(/\n+/).map(l => l.trim()).filter(l => l &&
+    !/https?:\/\/|www\./i.test(l) && !/^#/.test(l) && !/^\(?\d{1,2}:\d{2}/.test(l) && !/^[-=_*~─━•·]{3,}/.test(l) &&
+    !/(구독|좋아요|알림 ?설정|subscribe|follow|instagram|tiktok|문의|business|e-?mail|협찬|광고|유료 ?광고|copyright|ⓒ|©|bgm|music by|♬|♪)/i.test(l));
+  let t = lines.join(" ").replace(/\s+/g, " ").trim();
+  if (t.length <= 90) return t;
+  const cut = t.slice(0, 90), end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("다."), cut.lastIndexOf("요."), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return end > 35 ? cut.slice(0, end + 2).trim() : cut.replace(/\s\S*$/, "") + "…";
+}
+
+const getKey = () => { try { return localStorage.getItem(KEY + ":ytkey") || ""; } catch { return ""; } };
+
+async function fetchYTDetails(list) {
+  const key = getKey();
+  const todo = list.filter(i => i.platform === "yt" && !i.ytDone);
+  if (!key || !todo.length) return;
+  for (let n = 0; n < todo.length; n += 50) {
+    const batch = todo.slice(n, n + 50);
+    let j;
+    try {
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${batch.map(i => i.id).join(",")}&key=${encodeURIComponent(key)}`);
+      j = await r.json();
+      if (!r.ok) {
+        const reason = j?.error?.errors?.[0]?.reason || "";
+        status(reason === "quotaExceeded" ? "오늘 YouTube API 사용량을 다 썼어요. 내일 다시 시도돼요."
+          : /keyInvalid|badRequest/.test(reason) || r.status === 400 ? "YouTube API 키가 올바르지 않아요. '영상 요약 설정'에서 확인해 주세요."
+          : "YouTube API가 거절했어요. 콘솔에서 YouTube Data API v3가 켜져 있는지 확인해 주세요.");
+        return;
+      }
+    } catch { status("영상 설명을 불러오지 못했어요. 인터넷 연결을 확인해 주세요."); return; }
+    const byId = Object.fromEntries((j.items || []).map(v => [v.id, v.snippet]));
+    for (const it of batch) {
+      const sn = byId[it.id];
+      it.ytDone = true;
+      if (!sn) continue;
+      if (!it.title) it.title = sn.title;
+      if (!it.author) it.author = sn.channelTitle;
+      if (!it.descEdited) it.desc = summarize(sn.description) || "";
+      it.ytCat = Number(sn.categoryId);
+      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${(sn.tags || []).join(" ")} ${(sn.description || "").slice(0, 400)}`, it.ytCat);
+    }
+  }
+  save(); render();
+}
+
+// ---- 상태 ----
+let items = load();
+let platform = "all";
+let query = "";
+let scope = "all";
+const SCOPE_TEXT = {
+  all: i => `${i.title} ${i.desc || ""} ${i.author}`,
+  title: i => i.title || "",
+  desc: i => i.desc || "",
+  author: i => i.author || "",
+  td: i => `${i.title} ${i.desc || ""}`
+};
+const SCOPE_NAME = { all: "제목+내용+이름", title: "제목", desc: "내용", author: "채널·계정명", td: "제목+내용" };
+
+// 되돌리기: 추가·삭제 직전 목록을 기억해 둠
+let undoSnap = null, toastTimer = 0;
+function offerUndo(msg, snap) {
+  undoSnap = snap;
+  $("toastMsg").textContent = msg; $("toast").hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { $("toast").hidden = true; undoSnap = null; }, 7000);
+}
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch {} }
+function categories() {
+  const set = new Set(Object.keys(RULES));
+  items.forEach(i => set.add(i.category));
+  set.delete(UNSORTED);
+  return [...set, UNSORTED];
+}
+
+const $ = id => document.getElementById(id);
+const status = msg => { $("status").textContent = msg; };
+
+async function addLinks(text) {
+  const found = text.match(/(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be|instagram\.com|instagr\.am)\/[^\s<>"']+/gi) || [];
+  let added = 0, dup = 0, bad = 0;
+  const fresh = [];
+  for (const raw of found) {
+    const it = parse(raw);
+    if (!it) { bad++; continue; }
+    if (items.some(x => x.platform === it.platform && x.id === it.id) || fresh.some(x => x.platform === it.platform && x.id === it.id)) { dup++; continue; }
+    it.added = Date.now() + added;
+    it.category = UNSORTED;
+    it.manual = false;
+    fresh.push(it); added++;
+  }
+  if (!found.length) { status("유튜브나 인스타그램 링크를 찾지 못했어요. 주소 전체를 붙여넣어 주세요."); return; }
+  const before = items.slice();
+  items = [...fresh.reverse(), ...items];
+  save(); render();
+  if (added) offerUndo(`링크 ${added}개를 추가했어요`, before);
+  status(`${added}개 추가` + (dup ? ` · 중복 ${dup}개 건너뜀` : "") + (bad ? ` · 인식 못 한 링크 ${bad}개` : "") + (added ? " · 제목 불러오는 중…" : ""));
+  await Promise.all(fresh.map(async it => {
+    const info = await fetchInfo(it);
+    const target = items.find(x => x.platform === it.platform && x.id === it.id);
+    if (!target) return;
+    if (info) {
+      target.title = info.title;
+      target.author = info.author || target.author;
+      if (it.platform === "ig" && info.thumb) target.thumb = info.thumb;
+    }
+    if (!target.manual) target.category = classify(`${target.title} ${target.author}`);
+  }));
+  save(); render();
+  if (added) status(`${added}개 정리 완료` + (dup ? ` · 중복 ${dup}개 건너뜀` : ""));
+  await fetchYTDetails(items.filter(x => fresh.some(f => f.platform === x.platform && f.id === x.id)));
+}
+
+function render() {
+  const main = $("main");
+  $("total").textContent = items.length ? `${items.length}개` : "";
+  const q = query.trim().toLowerCase();
+  const list = items.filter(i => (platform === "all" || i.platform === platform) &&
+    (!q || q.split(/\s+/).every(w => SCOPE_TEXT[scope](i).toLowerCase().includes(w))));
+
+  if (!items.length) {
+    main.innerHTML = `<div class="empty"><strong>아직 저장한 링크가 없어요</strong>
+      <span>위 칸에 유튜브·인스타 링크를 붙여넣고 <b>정리하기</b>를 누르면<br>썸네일과 함께 비슷한 주제끼리 묶어 드려요.</span>
+      <button class="btn ghost" type="button" id="demo">예시 링크로 체험해 보기</button></div>`;
+    $("demo").onclick = () => addLinks("https://www.youtube.com/watch?v=9bZkp7q19f0 https://youtu.be/dQw4w9WgXcQ https://www.youtube.com/watch?v=jNQXAC9IVRw");
+    return;
+  }
+  if (!list.length) { main.innerHTML = `<div class="empty"><strong>${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}'를 찾지 못했어요</strong><span>검색 범위를 '제목+내용+이름'으로 넓히거나 플랫폼 필터를 '전체'로 바꿔 보세요.</span></div>`; return; }
+
+  const groups = new Map();
+  for (const c of categories()) groups.set(c, []);
+  for (const i of list) { if (!groups.has(i.category)) groups.set(i.category, []); groups.get(i.category).push(i); }
+  const filled = [...groups].filter(([, v]) => v.length)
+    .sort((a, b) => (a[0] === UNSORTED) - (b[0] === UNSORTED) || b[1].length - a[1].length);
+  const opts = categories();
+
+  main.innerHTML =
+    (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
+    (filled.length > 1 ? `<nav class="jump">${filled.map(([c, v], n) => `<a href="#cat-${n}">${esc(c)}<span>${v.length}</span></a>`).join("")}</nav>` : "") +
+    filled.map(([cat, v], n) => `<section class="shelf" id="cat-${n}">
+      <h2>${esc(cat)} <span class="n">${v.length}</span></h2>
+      <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
+  main.querySelectorAll(".desc").forEach(fit);
+}
+function fit(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
+
+function card(i, opts) {
+  const key = `${i.platform}:${i.id}`;
+  const label = i.platform === "yt" ? "YouTube" : "Instagram";
+  const title = i.title || (i.platform === "ig" ? `인스타그램 ${i.kind}` : "제목 불러오는 중…");
+  return `<article class="card" data-key="${esc(key)}">
+    <button class="x" type="button" data-act="del" aria-label="이 링크 삭제" title="삭제">×</button>
+    <a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener">
+      <img src="${esc(i.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback>
+      <span class="badge ${i.platform}">${label} ${esc(i.kind)}</span>
+    </a>
+    <div class="body">
+      <textarea class="title" rows="2" data-act="title" aria-label="제목 (클릭해서 수정)" placeholder="${esc(title)}">${esc(i.title)}</textarea>
+      <div class="meta">${esc(i.author || label)}</div>
+      <textarea class="desc" rows="1" data-act="desc" aria-label="내용 메모 (클릭해서 수정)" placeholder="${i.platform === "yt" && getKey() && !i.ytDone ? "내용 불러오는 중…" : "어떤 내용인지 메모하기"}">${esc(i.desc || "")}</textarea>
+      <div class="row">
+        <select data-act="cat" aria-label="카테고리">
+          ${opts.map(c => `<option${c === i.category ? " selected" : ""}>${esc(c)}</option>`).join("")}
+          <option value="__new">+ 새 카테고리…</option>
+        </select>
+        <button class="del" type="button" data-act="del" aria-label="삭제">삭제</button>
+      </div>
+    </div></article>`;
+}
+
+// 인스타 썸네일은 로그인 없이 못 가져오는 경우가 많아서 실패하면 그라데이션으로 대체
+document.addEventListener("error", e => {
+  const img = e.target;
+  if (img.tagName !== "IMG" || !img.hasAttribute("data-fallback")) return;
+  img.removeAttribute("data-fallback");
+  const card = img.closest(".card");
+  const it = card && find(card.dataset.key);
+  const ph = document.createElement("span");
+  ph.className = "ph";
+  ph.textContent = it && it.platform === "ig" ? "Instagram" : "썸네일 없음";
+  if (it && it.platform === "yt") ph.style.background = "var(--yt)";
+  img.replaceWith(ph);
+}, true);
+
+const find = key => items.find(x => `${x.platform}:${x.id}` === key);
+
+$("main").addEventListener("change", e => {
+  const el = e.target, card = el.closest(".card"); if (!card) return;
+  const it = find(card.dataset.key); if (!it) return;
+  if (el.dataset.act === "cat") {
+    if (el.value === "__new") {
+      const input = document.createElement("input");
+      input.placeholder = "카테고리 이름 입력 후 Enter";
+      el.replaceWith(input); input.focus();
+      const done = ok => { const v = input.value.trim(); if (ok && v) { it.category = v; it.manual = true; save(); } render(); };
+      input.addEventListener("keydown", k => { if (k.key === "Enter") done(true); if (k.key === "Escape") done(false); });
+      input.addEventListener("blur", () => done(true));
+      return;
+    }
+    it.category = el.value; it.manual = true; save(); render();
+  }
+});
+$("main").addEventListener("blur", e => {
+  const el = e.target;
+  if (el.dataset?.act === "desc") {
+    const it = find(el.closest(".card").dataset.key); if (!it) return;
+    const v = el.value.trim(); if (v === (it.desc || "")) return;
+    it.desc = v; it.descEdited = true;
+    if (!it.manual && it.category === UNSORTED) it.category = classify(`${it.title} ${it.author} ${v}`, it.ytCat);
+    save(); render(); return;
+  }
+  if (el.dataset?.act !== "title") return;
+  const it = find(el.closest(".card").dataset.key); if (!it) return;
+  const v = el.value.trim(); if (v === it.title) return;
+  it.title = v;
+  if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat);
+  save(); render();
+}, true);
+$("main").addEventListener("input", e => { if (e.target.dataset?.act === "desc") fit(e.target); });
+$("main").addEventListener("keydown", e => {
+  if (/^(title|desc)$/.test(e.target.dataset?.act || "") && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.blur(); }
+});
+$("main").addEventListener("click", e => {
+  const b = e.target.closest("[data-act=del]"); if (!b) return;
+  const key = b.closest(".card").dataset.key;
+  const it = find(key), before = items.slice();
+  items = items.filter(x => `${x.platform}:${x.id}` !== key); save(); render();
+  offerUndo(`'${(it?.title || "링크").slice(0, 24)}' 삭제했어요`, before);
+});
+
+$("addForm").addEventListener("submit", e => { e.preventDefault(); const t = $("links").value; $("links").value = ""; addLinks(t); });
+$("links").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("addForm").requestSubmit(); } });
+$("links").addEventListener("paste", () => setTimeout(() => { if (/https?:\/\//.test($("links").value)) $("addForm").requestSubmit(); }, 0));
+
+document.querySelectorAll("#platformSeg button").forEach(b => b.addEventListener("click", () => {
+  platform = b.dataset.p;
+  document.querySelectorAll("#platformSeg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+}));
+document.querySelectorAll("#scopeSeg button").forEach(b => b.addEventListener("click", () => {
+  scope = b.dataset.s;
+  document.querySelectorAll("#scopeSeg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  render();
+}));
+$("undoBtn").addEventListener("click", () => {
+  if (!undoSnap) return;
+  items = undoSnap; undoSnap = null; save(); render();
+  $("toast").hidden = true; status("되돌렸어요");
+});
+$("q").addEventListener("input", e => { query = e.target.value; render(); });
+$("q").addEventListener("keydown", e => { if (e.key === "Escape") { e.target.value = ""; query = ""; render(); e.target.blur(); } });
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); $("q").focus(); }
+});
+
+$("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `링크서랍-백업-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$("importFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data)) throw 0;
+    let n = 0;
+    for (const it of data) if (it && it.platform && it.id && !find(`${it.platform}:${it.id}`)) { items.push(it); n++; }
+    save(); render(); status(`백업에서 ${n}개를 불러왔어요`);
+  } catch { status("백업 파일을 읽지 못했어요. 이 사이트에서 저장한 .json 파일인지 확인해 주세요."); }
+  e.target.value = "";
+});
+
+$("setBtn").addEventListener("click", () => {
+  const box = $("settings"); box.hidden = !box.hidden;
+  $("setBtn").setAttribute("aria-expanded", String(!box.hidden));
+  if (!box.hidden) { $("apiKey").value = getKey(); $("apiKey").focus(); }
+});
+$("saveKey").addEventListener("click", async () => {
+  const k = $("apiKey").value.trim();
+  if (!k) { status("API 키를 입력해 주세요."); return; }
+  try { localStorage.setItem(KEY + ":ytkey", k); } catch {}
+  items.forEach(i => { if (i.platform === "yt") i.ytDone = false; });
+  $("settings").hidden = true; $("setBtn").setAttribute("aria-expanded", "false");
+  status("키를 저장했어요. 영상 내용을 불러오는 중…"); render();
+  await fetchYTDetails(items);
+  if (/불러오는 중/.test($("status").textContent)) status("영상 내용을 채웠어요.");
+});
+$("clearKey").addEventListener("click", () => { try { localStorage.removeItem(KEY + ":ytkey"); } catch {} $("apiKey").value = ""; status("API 키를 지웠어요."); render(); });
+
+render();
+fetchYTDetails(items);
+})();
+</script>
+</body>
+</html>
