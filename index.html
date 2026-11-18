@@ -93,6 +93,15 @@ main .wrap { padding-block: 24px 64px; display: grid; gap: 36px; }
 .cats button span { font-family: var(--font-num); color: var(--muted); margin-left: 5px; font-variant-numeric: tabular-nums; }
 .cats button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
 .cats button[aria-pressed="true"] span { color: #fff; opacity: .85; }
+.cats .tool { border: 0; background: transparent; color: var(--accent); font-weight: 700; padding: 5px 8px; }
+.cats .tool:hover { text-decoration: underline; }
+.cats .hint { align-self: center; color: var(--muted); font-size: 12.5px; flex-basis: 100%; }
+.cats.editing { padding: 10px; border: 1px dashed var(--accent); border-radius: 14px; background: var(--accent-soft); }
+.cats.editing button.chip { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cats.editing button.chip::before { content: "⠿"; margin-right: 6px; color: var(--muted); }
+.cats.editing button.chip[aria-pressed="true"] { background: var(--surface); color: var(--fg); border-color: var(--line); font-weight: 400; }
+.cats.editing button.chip[aria-pressed="true"] span { color: var(--muted); }
+.cats button.chip.dragging { opacity: .45; cursor: grabbing; }
 .ver { color: var(--muted); font-size: 12px; }
 .brand .syncdot { margin-left: auto; margin-right: 10px; }
 
@@ -183,7 +192,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-17</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-18</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -619,7 +628,7 @@ const Sync = {
   },
   pack() {
     // 인스타 썸네일 그림(용량 큼)은 빼고 올림. 다른 기기에서는 썸네일을 다시 받아 옴
-    return JSON.stringify({ v: 1, saved: Date.now(), deleted,
+    return JSON.stringify({ v: 1, saved: Date.now(), deleted, catOrder,
       items: items.map(i => (i.thumb || "").startsWith("data:") ? { ...i, thumb: `https://www.instagram.com/p/${i.id}/media/?size=l` } : i) });
   },
   merge(remote) {
@@ -641,7 +650,13 @@ const Sync = {
     const changed = JSON.stringify(out.map(fp)) !== JSON.stringify(items.map(fp));
     items = out; deleted = del;
     lastFp = new Map(items.map(i => [keyOf(i), fp(i)]));
-    return changed;
+    let orderChanged = false;
+    if (remote.catOrder && (!catOrder || (remote.catOrder.at || 0) > (catOrder.at || 0))) {
+      orderChanged = JSON.stringify(remote.catOrder.list) !== JSON.stringify(catOrder?.list);
+      catOrder = remote.catOrder;
+      try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
+    }
+    return changed || orderChanged;
   },
   async run() {
     if (!this.token()) { this.show("off", "동기화 꺼짐"); return; }
@@ -652,7 +667,7 @@ const Sync = {
       if (id) { try { remote = await this.pull(id); } catch (e) { if (e.status === 404) { this.setGist(""); id = await this.findGist(); if (id) remote = await this.pull(id); } else throw e; } }
       if (remote && this.merge(remote)) { save(true); render(); }
       const body = this.pack();
-      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted);
+      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted) && JSON.stringify(remote.catOrder || null) === JSON.stringify(catOrder || null);
       if (!id) {
         const g = await this.api("/gists", { method: "POST", body: JSON.stringify({ public: false, description: "링크 서랍 동기화 (지우지 마세요)", files: { [SYNC_FILE]: { content: body } } }) });
         this.setGist(g.id);
@@ -716,11 +731,30 @@ function save(fromSync) {
   try { localStorage.setItem(KEY, JSON.stringify(items)); localStorage.setItem(KEY + ":deleted", JSON.stringify(deleted)); } catch {}
   if (!fromSync) Sync.soon();
 }
+// 카테고리 순서: 직접 바꾼 적이 있으면 그 순서, 없으면 기본(화면은 개수 많은 순)
+let catOrder = (() => { try { return JSON.parse(localStorage.getItem(KEY + ":catorder")) || null; } catch { return null; } })();
+let catEdit = false;
+const customOrder = () => !!(catOrder && catOrder.list && catOrder.list.length);
+function saveCatOrder(list) {
+  catOrder = { list, at: Date.now() };
+  try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
+  Sync.soon();
+}
 function categories() {
   const set = new Set(Object.keys(RULES));
   items.forEach(i => set.add(i.category));
   set.delete(UNSORTED);
-  return [...set, UNSORTED];
+  const base = [...set, UNSORTED];
+  if (!customOrder()) return base;
+  const idx = new Map(catOrder.list.map((c, i) => [c, i]));
+  const pos = c => idx.has(c) ? idx.get(c) : 1e6 + base.indexOf(c);
+  return base.sort((a, b) => pos(a) - pos(b));
+}
+// 화면에 보이는 카테고리들의 새 순서를 전체 순서에 끼워 넣음 (안 보이는 카테고리 자리는 유지)
+function applyVisibleOrder(visible) {
+  const full = categories(), vis = new Set(visible);
+  let k = 0;
+  saveCatOrder(full.map(c => vis.has(c) ? visible[k++] : c));
 }
 
 const $ = id => document.getElementById(id);
@@ -785,15 +819,20 @@ function render() {
   const groups = new Map();
   for (const c of categories()) groups.set(c, []);
   for (const i of list) { if (!groups.has(i.category)) groups.set(i.category, []); groups.get(i.category).push(i); }
+  const order = categories();
   const allFilled = [...groups].filter(([, v]) => v.length)
-    .sort((a, b) => (a[0] === UNSORTED) - (b[0] === UNSORTED) || b[1].length - a[1].length);
+    .sort(customOrder() ? (a, b) => order.indexOf(a[0]) - order.indexOf(b[0])
+      : (a, b) => (a[0] === UNSORTED) - (b[0] === UNSORTED) || b[1].length - a[1].length);
   if (catFilter !== "all" && !allFilled.some(([c]) => c === catFilter)) catFilter = "all";
   const filled = catFilter === "all" ? allFilled : allFilled.filter(([c]) => c === catFilter);
   const opts = categories();
 
   main.innerHTML =
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
-    `<nav class="cats" aria-label="카테고리별 보기"><button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>${allFilled.map(([c, v]) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${catFilter === c}">${esc(c)}<span>${v.length}</span></button>`).join("")}</nav>` +
+    `<nav class="cats${catEdit ? " editing" : ""}" aria-label="카테고리별 보기">${catEdit ? "" : `<button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>`}${allFilled.map(([c, v]) => `<button type="button" class="chip" data-cat="${esc(c)}" aria-pressed="${catFilter === c}">${esc(c)}<span>${v.length}</span></button>`).join("")}` +
+    (catEdit
+      ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint">버튼을 끌어서 원하는 자리에 놓으세요. 키보드는 버튼을 고르고 ← → 키로 옮겨요. 바꾼 순서는 다른 기기에도 똑같이 맞춰져요.</span>`
+      : `<button type="button" class="tool" data-catedit>순서 바꾸기</button>`) + `</nav>` +
     filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}" id="cat-${n}">
       <h2>${esc(cat)} <span class="n">${v.length}</span></h2>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
@@ -902,6 +941,42 @@ if (canHover) {
   });
 }
 
+// 카테고리 버튼 끌어서 옮기기
+let drag = null;
+$("main").addEventListener("pointerdown", e => {
+  const chip = e.target.closest(".cats.editing button.chip"); if (!chip) return;
+  e.preventDefault();
+  drag = { chip, id: e.pointerId, moved: false };
+  chip.setPointerCapture(e.pointerId); chip.classList.add("dragging");
+});
+$("main").addEventListener("pointermove", e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const over = document.elementFromPoint(e.clientX, e.clientY)?.closest(".cats.editing button.chip");
+  if (!over || over === drag.chip) return;
+  const r = over.getBoundingClientRect();
+  over.parentNode.insertBefore(drag.chip, e.clientX < r.left + r.width / 2 ? over : over.nextSibling);
+  drag.moved = true;
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const { chip, moved } = drag; drag = null;
+  chip.classList.remove("dragging");
+  if (moved) { applyVisibleOrder([...chip.parentNode.querySelectorAll("button.chip")].map(b => b.dataset.cat)); render(); }
+}
+$("main").addEventListener("pointerup", endDrag);
+$("main").addEventListener("pointercancel", endDrag);
+$("main").addEventListener("keydown", e => {
+  const chip = e.target.closest?.(".cats.editing button.chip");
+  if (!chip || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+  e.preventDefault();
+  const vis = [...chip.parentNode.querySelectorAll("button.chip")].map(b => b.dataset.cat);
+  const i = vis.indexOf(chip.dataset.cat), j = i + (e.key === "ArrowLeft" ? -1 : 1);
+  if (j < 0 || j >= vis.length) return;
+  [vis[i], vis[j]] = [vis[j], vis[i]];
+  applyVisibleOrder(vis); render();
+  [...document.querySelectorAll(".cats button.chip")].find(b => b.dataset.cat === chip.dataset.cat)?.focus();
+});
+
 const refreshed = new Set();
 document.addEventListener("error", e => {
   const img = e.target;
@@ -989,6 +1064,13 @@ $("main").addEventListener("click", e => {
     else fallback();
     return;
   }
+  if (e.target.closest("[data-catedit]")) { catEdit = !catEdit; if (catEdit) catFilter = "all"; render(); if (!catEdit) status(customOrder() ? "카테고리 순서를 저장했어요" : ""); return; }
+  if (e.target.closest("[data-catreset]")) {
+    catOrder = { list: [], at: Date.now() };
+    try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
+    Sync.soon(); render(); status("개수 많은 순서로 되돌렸어요"); return;
+  }
+  if (catEdit && e.target.closest(".cats [data-cat]")) return; // 순서 바꾸는 중에는 눌러도 거르지 않음
   const cb = e.target.closest("[data-cat]");
   if (cb) { catFilter = cb.dataset.cat; render(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const b = e.target.closest("[data-act=del]"); if (!b) return;
