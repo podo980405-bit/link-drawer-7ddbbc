@@ -64,10 +64,21 @@ header.top .wrap { padding-block: 16px; display: grid; gap: 12px; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
 .seg button { border: 0; background: transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--muted); font-size: 14px; }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
-.searchbox { position: relative; flex: 1 1 320px; min-width: 0; max-width: 460px; }
+.searchbar { display: flex; align-items: stretch; flex: 1 1 420px; min-width: 0; max-width: 620px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.searchbar:focus-within { border-color: var(--accent); }
+.scopebox { position: relative; flex: none; }
+#scopeBtn { height: 100%; display: inline-flex; align-items: center; gap: 4px; border: 0; border-right: 1px solid var(--line); background: transparent; padding: 0 10px 0 16px; border-radius: 999px 0 0 999px; cursor: pointer; font-size: 14px; font-weight: 500; white-space: nowrap; }
+#scopeBtn:hover { background: var(--bg); }
+#scopeBtn svg { width: 14px; height: 14px; color: var(--muted); transition: transform .15s; }
+#scopeBtn[aria-expanded="true"] svg { transform: rotate(180deg); }
+.scopemenu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 170px; margin: 0; padding: 6px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.14); }
+.scopemenu li { padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.scopemenu li:hover, .scopemenu li.hl { background: var(--bg); }
+.scopemenu li[aria-selected="true"] { color: var(--accent); font-weight: 700; }
+.searchbox { position: relative; flex: 1 1 auto; min-width: 0; }
 .searchbox svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
-.search { width: 100%; padding: 8px 40px 8px 36px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
-.search:focus { border-color: var(--accent); }
+.search { width: 100%; height: 100%; padding: 8px 40px 8px 36px; border: 0; border-radius: 0 999px 999px 0; background: transparent; outline: none; }
+
 .searchbox kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font: 12px var(--font-num); color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
 .found { color: var(--muted); font-size: 14px; }
 .found b { color: var(--fg); font-family: var(--font-num); }
@@ -135,7 +146,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .x { position: absolute; top: 8px; right: 8px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; background: rgba(0,0,0,.55); color: #fff; font-size: 17px; line-height: 1; }
 .x:hover { background: var(--danger); }
 .searchrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.seg.scope { flex-wrap: wrap; border-radius: 14px; }
+
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20; display: flex; gap: 14px; align-items: center; background: var(--fg); color: var(--bg); padding: 10px 12px 10px 16px; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,.25); font-size: 14px; max-width: calc(100% - 32px); }
 .toast button { border: 0; background: transparent; color: var(--accent-soft); font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
 .toast button:hover { background: color-mix(in srgb, var(--bg) 15%, transparent); }
@@ -151,7 +162,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
   .toast { width: calc(100% - 32px); justify-content: space-between; }
   .add { flex-direction: column; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .search { max-width: none; }
+  .searchbar { max-width: none; flex-basis: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .thumb img { transition: none; } }
 </style>
@@ -159,7 +170,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-12</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-13</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -182,13 +193,18 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
       <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">백업 불러오기<input type="file" id="importFile" accept="application/json" hidden></label>
     </div>
     <div class="searchrow">
-      <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="search" id="q" type="search" placeholder="저장한 링크 검색" aria-label="저장한 링크 검색"><kbd>/</kbd></div>
-      <div class="seg scope" id="scopeSeg" role="group" aria-label="검색 범위">
-        <button type="button" data-s="all" aria-pressed="true">제목+내용+이름</button>
-        <button type="button" data-s="title" aria-pressed="false">제목</button>
-        <button type="button" data-s="desc" aria-pressed="false">내용</button>
-        <button type="button" data-s="author" aria-pressed="false">채널·계정명</button>
-        <button type="button" data-s="td" aria-pressed="false">제목+내용</button>
+      <div class="searchbar">
+        <div class="scopebox">
+          <button type="button" id="scopeBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="검색 범위"><span id="scopeLabel">제목+내용+이름</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          <ul class="scopemenu" id="scopeMenu" role="listbox" aria-label="검색 범위" hidden>
+            <li role="option" data-s="all" aria-selected="true">제목+내용+이름</li>
+            <li role="option" data-s="title" aria-selected="false">제목</li>
+            <li role="option" data-s="desc" aria-selected="false">내용</li>
+            <li role="option" data-s="author" aria-selected="false">채널·계정명</li>
+            <li role="option" data-s="td" aria-selected="false">제목+내용</li>
+          </ul>
+        </div>
+        <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="search" id="q" type="search" placeholder="저장한 링크 검색" aria-label="저장한 링크 검색"><kbd>/</kbd></div>
       </div>
     </div>
     <div class="settings" id="settings" hidden>
@@ -804,11 +820,32 @@ document.querySelectorAll("#platformSeg button").forEach(b => b.addEventListener
   document.querySelectorAll("#platformSeg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
   render();
 }));
-document.querySelectorAll("#scopeSeg button").forEach(b => b.addEventListener("click", () => {
-  scope = b.dataset.s;
-  document.querySelectorAll("#scopeSeg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
-  render();
-}));
+// 검색 범위 드롭다운 (돋보기 왼쪽)
+const scopeBtn = $("scopeBtn"), scopeMenu = $("scopeMenu");
+const scopeOpts = [...scopeMenu.querySelectorAll("li")];
+function openScope(open) {
+  scopeMenu.hidden = !open; scopeBtn.setAttribute("aria-expanded", String(open));
+  scopeOpts.forEach(o => o.classList.toggle("hl", o.dataset.s === scope));
+}
+function pickScope(s) {
+  scope = s;
+  scopeOpts.forEach(o => o.setAttribute("aria-selected", String(o.dataset.s === s)));
+  $("scopeLabel").textContent = SCOPE_NAME[s];
+  openScope(false); render(); $("q").focus();
+}
+scopeBtn.addEventListener("click", () => openScope(scopeMenu.hidden));
+scopeOpts.forEach(o => o.addEventListener("click", () => pickScope(o.dataset.s)));
+scopeBtn.addEventListener("keydown", e => {
+  if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return;
+  e.preventDefault();
+  if (e.key === "Escape") return openScope(false);
+  if (scopeMenu.hidden) return openScope(true);
+  const i = scopeOpts.findIndex(o => o.classList.contains("hl"));
+  if (e.key === "Enter") return pickScope(scopeOpts[Math.max(0, i)].dataset.s);
+  const n = (i + (e.key === "ArrowDown" ? 1 : -1) + scopeOpts.length) % scopeOpts.length;
+  scopeOpts.forEach((o, k) => o.classList.toggle("hl", k === n));
+});
+document.addEventListener("click", e => { if (!e.target.closest(".scopebox")) openScope(false); });
 $("undoBtn").addEventListener("click", () => {
   if (!undoSnap) return;
   items = undoSnap; undoSnap = null; save(); render();
