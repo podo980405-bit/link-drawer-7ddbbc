@@ -106,6 +106,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .settings input { flex: 1; min-width: 180px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-family: ui-monospace, monospace; font-size: 13px; }
 .settings ol { margin: 0; padding-left: 20px; color: var(--muted); }
 .settings a { color: var(--accent); }
+.tr { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin-top: -2px; }
 .meta { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
 .row select { flex: 1; min-width: 0; padding: 4px 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; }
@@ -196,9 +197,10 @@ const RULES = {
   "공부·자기계발": ["공부","study","강의","lecture","강좌","영어","english","수학","자기계발","독서","책 추천","북리뷰","경제","주식","투자","재테크","부동산","tutorial","튜토리얼","하는 법","하는법","how to","꿀팁","tip","tips","자격증","시험","면접","취업"],
   "IT·테크": ["아이폰","iphone","갤럭시","galaxy","맥북","macbook","ipad","아이패드","언박싱","unboxing","테크","tech","ai","chatgpt","claude","개발","코딩","coding","programming","프로그래밍","노트북","laptop","키보드","keyboard","카메라","camera","애플","apple","삼성","samsung","스마트폰","gadget"],
   "뷰티·패션": ["메이크업","makeup","화장","뷰티","beauty","패션","fashion","ootd","코디","스킨케어","skincare","헤어","hair","네일","nail","룩북","lookbook","하울","haul","향수","perfume","올리브영","쿠션","립"],
-  "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","웹툰","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
+  "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
   "동물": ["강아지","고양이","냥이","댕댕","멍멍","dog","cat","puppy","kitten","반려","동물","animal","pet","햄스터","앵무새"],
   "일상·브이로그": ["브이로그","vlog","일상","daily","grwm","루틴","routine","자취","직장인","what i eat","하루"],
+  "인스타툰": ["인스타툰","툰","웹툰","만화","그림일기","그림 일기","컷툰","네컷","4컷","연재","toon","toons","instatoon","webtoon","comic","comics","cartoon"],
   "유머·밈": ["웃긴","레전드","밈","meme","funny","몰카","prank","짤","ㅋㅋ","개그","코미디","comedy"]
 };
 
@@ -217,7 +219,8 @@ function classify(text, ytCat) {
   if (!t.trim() && !hint) return UNSORTED;
   let best = UNSORTED, score = 0;
   for (const [cat, ms] of MATCHERS) {
-    const s = ms.reduce((n, m) => n + (m.test(t) ? 1 : 0), 0) + (cat === hint ? 2 : 0);
+    // 인스타툰은 일상 이야기를 많이 다뤄서, 툰 관련 단어가 하나라도 있으면 우선
+    const s = ms.reduce((n, m) => n + (m.test(t) ? 1 : 0), 0) * (cat === "인스타툰" ? 3 : 1) + (cat === hint ? 2 : 0);
     if (s > score) { score = s; best = cat; }
   }
   return best;
@@ -316,17 +319,78 @@ async function fetchYTDetails(list) {
   save(); render();
 }
 
+// ---- 외국어 → 한국어 번역 ----
+// 글자 중 한글이 20% 미만이면 외국어로 보고 번역
+function isForeign(t) {
+  const letters = (t || "").match(/\p{L}/gu) || [];
+  if (letters.length < 2) return false;
+  const ko = (t.match(/\p{Script=Hangul}/gu) || []).length;
+  return ko / letters.length < 0.2;
+}
+function guessLang(t) {
+  if (/[\u3040-\u30ff]/.test(t)) return "ja";
+  if (/\p{Script=Han}/u.test(t)) return "zh-CN";
+  if (/\p{Script=Cyrillic}/u.test(t)) return "ru";
+  if (/\p{Script=Thai}/u.test(t)) return "th";
+  return "en";
+}
+async function translate(text) {
+  try {
+    const r = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ko&dt=t&q=${encodeURIComponent(text)}`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j[2] === "ko") return "";
+      const out = (j[0] || []).map(x => x[0]).join("").trim();
+      if (out) return out;
+    }
+  } catch {}
+  try {
+    const r = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.slice(0, 450))}&langpair=${guessLang(text)}|ko`);
+    const j = await r.json();
+    const out = j?.responseData?.translatedText || "";
+    if (j.responseStatus == 200 && out && !/MYMEMORY|QUERY LENGTH/i.test(out)) return out.trim();
+  } catch {}
+  return null; // 실패: 다음에 다시 시도
+}
+let translating = false, translateAgain = false;
+async function translateAll() {
+  if (translating) { translateAgain = true; return; }
+  translating = true;
+  try {
+    for (const it of items.slice()) {
+      let touched = false;
+      for (const f of ["title", "desc"]) {
+        const src = it[f] || "";
+        if (it[f + "KoSrc"] === src) continue;
+        if (!isForeign(src)) { it[f + "Ko"] = ""; it[f + "KoSrc"] = src; continue; }
+        const out = await translate(src);
+        if (out === null) continue;
+        it[f + "Ko"] = out && out !== src ? out : "";
+        it[f + "KoSrc"] = src; touched = true;
+      }
+      if (touched) {
+        if (!it.manual && it.category === UNSORTED)
+          it.category = classify(`${it.title} ${it.titleKo || ""} ${it.author} ${it.desc || ""} ${it.descKo || ""}`, it.ytCat);
+        save(); render();
+      }
+    }
+  } finally {
+    translating = false;
+    if (translateAgain) { translateAgain = false; translateAll(); }
+  }
+}
+
 // ---- 상태 ----
 let items = load();
 let platform = "all";
 let query = "";
 let scope = "all";
 const SCOPE_TEXT = {
-  all: i => `${i.title} ${i.desc || ""} ${i.author}`,
-  title: i => i.title || "",
-  desc: i => i.desc || "",
+  all: i => `${i.title} ${i.titleKo || ""} ${i.desc || ""} ${i.descKo || ""} ${i.author}`,
+  title: i => `${i.title || ""} ${i.titleKo || ""}`,
+  desc: i => `${i.desc || ""} ${i.descKo || ""}`,
   author: i => i.author || "",
-  td: i => `${i.title} ${i.desc || ""}`
+  td: i => `${i.title} ${i.titleKo || ""} ${i.desc || ""} ${i.descKo || ""}`
 };
 const SCOPE_NAME = { all: "제목+내용+이름", title: "제목", desc: "내용", author: "채널·계정명", td: "제목+내용" };
 
@@ -383,6 +447,7 @@ async function addLinks(text) {
   save(); render();
   if (added) status(`${added}개 정리 완료` + (dup ? ` · 중복 ${dup}개 건너뜀` : ""));
   await fetchYTDetails(items.filter(x => fresh.some(f => f.platform === x.platform && f.id === x.id)));
+  translateAll();
 }
 
 function render() {
@@ -430,8 +495,10 @@ function card(i, opts) {
     </a>
     <div class="body">
       <textarea class="title" rows="2" data-act="title" aria-label="제목 (클릭해서 수정)" placeholder="${esc(title)}">${esc(i.title)}</textarea>
+      ${i.titleKo ? `<div class="tr">(${esc(i.titleKo)})</div>` : ""}
       <div class="meta">${esc(i.author || label)}</div>
       <textarea class="desc" rows="1" data-act="desc" aria-label="내용 메모 (클릭해서 수정)" placeholder="${i.platform === "yt" && getKey() && !i.ytDone ? "내용 불러오는 중…" : "어떤 내용인지 메모하기"}">${esc(i.desc || "")}</textarea>
+      ${i.descKo ? `<div class="tr">(${esc(i.descKo)})</div>` : ""}
       <div class="row">
         <select data-act="cat" aria-label="카테고리">
           ${opts.map(c => `<option${c === i.category ? " selected" : ""}>${esc(c)}</option>`).join("")}
@@ -481,14 +548,14 @@ $("main").addEventListener("blur", e => {
     const v = el.value.trim(); if (v === (it.desc || "")) return;
     it.desc = v; it.descEdited = true;
     if (!it.manual && it.category === UNSORTED) it.category = classify(`${it.title} ${it.author} ${v}`, it.ytCat);
-    save(); render(); return;
+    save(); render(); translateAll(); return;
   }
   if (el.dataset?.act !== "title") return;
   const it = find(el.closest(".card").dataset.key); if (!it) return;
   const v = el.value.trim(); if (v === it.title) return;
   it.title = v;
   if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat);
-  save(); render();
+  save(); render(); translateAll();
 }, true);
 $("main").addEventListener("input", e => { if (e.target.dataset?.act === "desc") fit(e.target); });
 $("main").addEventListener("keydown", e => {
@@ -559,12 +626,20 @@ $("saveKey").addEventListener("click", async () => {
   $("settings").hidden = true; $("setBtn").setAttribute("aria-expanded", "false");
   status("키를 저장했어요. 영상 내용을 불러오는 중…"); render();
   await fetchYTDetails(items);
+  translateAll();
   if (/불러오는 중/.test($("status").textContent)) status("영상 내용을 채웠어요.");
 });
 $("clearKey").addEventListener("click", () => { try { localStorage.removeItem(KEY + ":ytkey"); } catch {} $("apiKey").value = ""; status("API 키를 지웠어요."); render(); });
 
+// 분류 규칙이 바뀌었을 수 있으니, 직접 고르지 않은 미분류 링크는 다시 분류
+let changed = false;
+for (const it of items) if (!it.manual && it.category === UNSORTED) {
+  const c = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat);
+  if (c !== UNSORTED) { it.category = c; changed = true; }
+}
+if (changed) save();
 render();
-fetchYTDetails(items);
+fetchYTDetails(items).then(translateAll);
 })();
 </script>
 </body>
