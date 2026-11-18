@@ -97,6 +97,10 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .thumb iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .3s ease; }
 .thumb iframe.on { opacity: 1; }
 .badge { z-index: 1; }
+/* '(세로)' 분류: 카드를 세로(9:16)로. 유튜브 썸네일은 가운데를 잘라 세로 화면만 보이게 */
+.shelf.portrait .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.shelf.portrait .thumb { aspect-ratio: 9 / 16; }
+.shelf.portrait .thumb iframe { width: 316%; left: 50%; transform: translateX(-50%); }
 .badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; color: #fff; }
 .badge.yt { background: var(--yt); }
 .badge.ig { background: var(--ig); }
@@ -146,7 +150,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-4</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-5</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -595,7 +599,7 @@ function render() {
   main.innerHTML =
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
     `<nav class="cats" aria-label="카테고리별 보기"><button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>${allFilled.map(([c, v]) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${catFilter === c}">${esc(c)}<span>${v.length}</span></button>`).join("")}</nav>` +
-    filled.map(([cat, v], n) => `<section class="shelf" id="cat-${n}">
+    filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}" id="cat-${n}">
       <h2>${esc(cat)} <span class="n">${v.length}</span></h2>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
   main.querySelectorAll(".desc").forEach(fit);
