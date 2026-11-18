@@ -76,9 +76,13 @@ mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: in
 .status { color: var(--muted); font-size: 13px; min-height: 1em; }
 
 main .wrap { padding-block: 24px 64px; display: grid; gap: 36px; }
-.jump { display: flex; gap: 6px; flex-wrap: wrap; }
-.jump a { text-decoration: none; color: var(--fg); background: var(--surface); border: 1px solid var(--line); padding: 4px 11px; border-radius: 999px; font-size: 13px; }
-.jump a span { font-family: var(--font-num); color: var(--muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.cats { display: flex; gap: 6px; flex-wrap: wrap; }
+.cats button { cursor: pointer; color: var(--fg); background: var(--surface); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; font-size: 13.5px; }
+.cats button:hover { border-color: var(--accent); }
+.cats button span { font-family: var(--font-num); color: var(--muted); margin-left: 5px; font-variant-numeric: tabular-nums; }
+.cats button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+.cats button[aria-pressed="true"] span { color: #fff; opacity: .85; }
+.ver { color: var(--muted); font-size: 12px; margin-left: auto; }
 
 section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .shelf h2 { margin: 0; font-size: 18px; display: flex; align-items: baseline; gap: 8px; text-wrap: balance; }
@@ -139,7 +143,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-3</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -189,7 +193,7 @@ const UNSORTED = "미분류";
 
 // 카테고리별 키워드. 제목·채널명에서 가장 많이 맞는 카테고리로 분류합니다.
 const RULES = {
-  "음악": ["음악","music","mv","m/v","뮤비","노래","song","cover","커버","playlist","플레이리스트","플리","라이브","live clip","official audio","가사","lyrics","앨범","album","콘서트","concert","kpop","k-pop","피아노","piano","guitar","연주","댄스","dance","안무","choreography","직캠","fancam"],
+  "음악": ["음악","music","mv","m/v","뮤비","노래","song","cover","커버","playlist","플레이리스트","플리","라이브","live clip","official audio","가사","lyrics","앨범","album","콘서트","concert","kpop","k-pop","피아노","piano","guitar","연주","댄스","dance","안무","choreography"],
   "요리·음식": ["요리","레시피","recipe","cooking","먹방","mukbang","맛집","food","음식","베이킹","baking","카페","cafe","디저트","dessert","집밥","편의점","라면","파스타","치킨","고기","빵","커피","coffee","asmr eating"],
   "여행": ["여행","travel","trip","투어","tour","호텔","hotel","해외","제주","일본","도쿄","오사카","후쿠오카","유럽","파리","뉴욕","방콕","다낭","캠핑","camping","숙소","항공","공항","airport"],
   "운동·스포츠": ["운동","workout","헬스","홈트","요가","yoga","필라테스","pilates","다이어트","diet","러닝","running","fitness","스트레칭","stretching","축구","soccer","football","야구","baseball","농구","basketball","골프","golf","sports","스포츠","하이라이트","highlights","등산","클라이밍"],
@@ -200,6 +204,8 @@ const RULES = {
   "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
   "동물": ["강아지","고양이","냥이","댕댕","멍멍","dog","cat","puppy","kitten","반려","동물","animal","pet","햄스터","앵무새"],
   "일상·브이로그": ["브이로그","vlog","일상","daily","grwm","루틴","routine","자취","직장인","what i eat","하루"],
+  "직캠(가로)": [],
+  "직캠(세로)": [],
   "인스타툰": ["인스타툰","툰","웹툰","만화","그림일기","그림 일기","컷툰","네컷","4컷","연재","toon","toons","instatoon","webtoon","comic","comics","cartoon"],
   "유머·밈": ["웃긴","레전드","밈","meme","funny","몰카","prank","짤","ㅋㅋ","개그","코미디","comedy"]
 };
@@ -213,8 +219,15 @@ const MATCHERS = Object.entries(RULES).map(([cat, words]) => [cat, words.map(w =
 // 유튜브 자체 카테고리 번호 → 우리 카테고리 (확실한 것만)
 const YT_CAT = { 10: "음악", 20: "게임", 17: "운동·스포츠", 19: "여행", 15: "동물", 27: "공부·자기계발", 28: "IT·테크", 23: "유머·밈", 1: "영화·드라마·예능" };
 
-function classify(text, ytCat) {
+// 직캠은 화면 방향으로 나눔: 쇼츠·릴스나 '세로'가 들어가면 세로, 아니면 가로
+const FANCAM = /직캠|fancam|fan cam|focus ?cam|페이스캠|face ?cam|세로캠|가로캠|입덕직캠|직찍/i;
+function classify(text, ytCat, it) {
   const t = (text || "").toLowerCase();
+  if (FANCAM.test(t)) {
+    const vertical = /세로|vertical|#shorts|\bshorts\b|9:16/i.test(t) || (it && (it.kind === "쇼츠" || it.kind === "릴스"));
+    const horizontal = /가로|horizontal|16:9/i.test(t);
+    return vertical && !horizontal ? "직캠(세로)" : "직캠(가로)";
+  }
   const hint = YT_CAT[ytCat];
   if (!t.trim() && !hint) return UNSORTED;
   let best = UNSORTED, score = 0;
@@ -256,46 +269,103 @@ function parse(raw) {
   }
 }
 
-// 인스타: 링크 미리보기 서비스(Microlink)로 제목·글·썸네일을 읽어 옴 (무료, 하루 약 50회)
-async function fetchIG(item) {
+// 인스타: 여러 방법을 차례로 시도
+//  1) Microlink 링크 미리보기  2) 인스타 '퍼가기(embed)' 페이지를 공개 프록시로 읽기
+const PROXIES = [
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`
+];
+let igReasons = [];
+let igFail = { n: 0, why: "" };
+function splitCaption(caption) {
+  caption = (caption || "").replace(/\s+/g, " ").trim();
+  let title = caption.split(/(?<=[.!?。！？])\s|\s#/)[0].slice(0, 80);
+  return { title, desc: summarize(caption.slice(title.length).trim()) };
+}
+async function igMicrolink(item) {
   try {
     const r = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(item.url)}`);
     const j = await r.json();
-    if (j.status !== "success" || !j.data) return null;
+    if (j.status !== "success" || !j.data) { igReasons.push("미리보기 서비스: " + (j.code || j.message || r.status)); return null; }
     const d = j.data;
-    let caption = "", author = item.author || "";
     const t = (d.title || "").trim(), desc = (d.description || "").trim();
-    // 보통 형식: '이름 on Instagram: "글 내용"' / '좋아요 12개, 댓글 3개 - username님 ...: "글 내용"'
     const mt = t.match(/^(.*?)\s+on Instagram:\s*["“]([\s\S]*)["”]\s*$/i);
     const md = desc.match(/[-–]\s*([\w.]+)\s*(?:on|님)/i);
     const mc = desc.match(/:\s*["“]([\s\S]*)["”]\s*\.?\s*$/);
-    caption = (mt && mt[2]) || (mc && mc[1]) || "";
-    if (md) author = "@" + md[1];
-    else if (d.author) author = d.author;
-    else if (mt) author = mt[1];
-    caption = caption.replace(/\s+/g, " ").trim();
-    let title = caption.split(/(?<=[.!?。！？])\s|\s#/)[0].slice(0, 80);
-    if (!title && t && !/^instagram$/i.test(t)) title = t.replace(/\s*•\s*Instagram.*$/i, "").slice(0, 80);
-    const rest = caption.slice(title.length).trim();
-    const out = { title, author, desc: summarize(rest || ""), thumb: d.image?.url || "" };
-    if (out.thumb) out.thumb = await shrink(out.thumb);
-    return out.title || out.thumb ? out : null;
-  } catch { return null; }
+    const caption = (mt && mt[2]) || (mc && mc[1]) || "";
+    const author = md ? "@" + md[1] : (d.author || (mt && mt[1]) || "");
+    let { title, desc: dsum } = splitCaption(caption);
+    if (!title && t && !/^instagram$/i.test(t) && !/log ?in|로그인/i.test(t)) title = t.replace(/\s*•\s*Instagram.*$/i, "").slice(0, 80);
+    const thumb = d.image?.url || "";
+    if (!title && !thumb) { igReasons.push("미리보기 서비스: 내용 없음(로그인 화면)"); return null; }
+    return { title, author, desc: dsum, thumb };
+  } catch (e) { igReasons.push("미리보기 서비스: 연결 실패"); return null; }
+}
+function unjson(str) { try { return JSON.parse('"' + str + '"'); } catch { return str; } }
+async function igEmbed(item) {
+  const embed = `https://www.instagram.com/p/${item.id}/embed/captioned/`;
+  for (const [n, px] of PROXIES.entries()) {
+    try {
+      const r = await fetch(px(embed));
+      if (!r.ok) { igReasons.push(`프록시${n + 1}: ${r.status}`); continue; }
+      const html = await r.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      let thumb = doc.querySelector(".EmbeddedMediaImage")?.getAttribute("src") || "";
+      if (!thumb) {
+        // 페이지 안 JSON에서 이미지 주소 찾기 (한두 번 이스케이프된 형태 모두)
+        let m = html.match(/\\?"display_url\\?":\\?"(.*?)\\?"/) || html.match(/\\?"thumbnail_src\\?":\\?"(.*?)\\?"/);
+        if (m) { thumb = m[1]; for (let k = 0; k < 2 && /\\/.test(thumb); k++) thumb = unjson(thumb); }
+      }
+      const user = (doc.querySelector(".UsernameText")?.textContent || doc.querySelector(".CaptionUsername")?.textContent || "").trim();
+      let caption = "";
+      const cap = doc.querySelector(".Caption");
+      if (cap) {
+        const c = cap.cloneNode(true);
+        c.querySelectorAll(".CaptionUsername, .CaptionComments").forEach(x => x.remove());
+        caption = c.textContent;
+      }
+      if (!thumb && !caption) { igReasons.push(`프록시${n + 1}: 게시물 내용 없음`); continue; }
+      const { title, desc } = splitCaption(caption);
+      return { title, author: user ? "@" + user : "", desc, thumb };
+    } catch { igReasons.push(`프록시${n + 1}: 연결 실패`); }
+  }
+  return null;
+}
+async function fetchIG(item) {
+  igReasons = [];
+  let out = await igMicrolink(item);
+  if (!out || !out.thumb) {
+    const e = await igEmbed(item);
+    if (e) out = { title: out?.title || e.title, author: out?.author || e.author, desc: out?.desc || e.desc, thumb: e.thumb || out?.thumb || "" };
+  }
+  if (!out) { igFail = { n: igFail.n + 1, why: igReasons.join(" / ") }; status("인스타 정보를 못 불러왔어요 · " + igFail.why); return null; }
+  if (out.thumb) out.thumb = await shrink(out.thumb);
+  return out;
 }
 // 인스타 이미지 주소는 며칠 지나면 만료돼서, 가능하면 작게 줄여 브라우저에 직접 저장
 async function shrink(url) {
-  try {
-    const r = await fetch(url); if (!r.ok) return url;
-    const bmp = await createImageBitmap(await r.blob());
+  for (const src of [url, ...PROXIES.slice(0, 2).map(px => px(url))]) {
+    try {
+      const r = await fetch(src); if (!r.ok) continue;
+      const blob = await r.blob(); if (!/^image\//.test(blob.type) && blob.size < 1000) continue;
+      return await toSmall(blob);
+    } catch {}
+  }
+  return url;
+}
+async function toSmall(blob) {
+  {
+    const bmp = await createImageBitmap(blob);
     const w = Math.min(480, bmp.width), h = Math.round(bmp.height * w / bmp.width);
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     c.getContext("2d").drawImage(bmp, 0, 0, w, h);
     return c.toDataURL("image/jpeg", 0.72);
-  } catch { return url; }
+  }
 }
 
 async function fetchInfo(item) {
-  if (item.platform === "ig") { item.igTried = true; return await fetchIG(item); }
+  if (item.platform === "ig") { item.igTried2 = true; return await fetchIG(item); }
   const tries = [
     `https://noembed.com/embed?url=${encodeURIComponent(item.url)}`,
     item.platform === "yt" ? `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(item.url)}` : null
@@ -352,7 +422,7 @@ async function fetchYTDetails(list) {
       if (!it.author) it.author = sn.channelTitle;
       if (!it.descEdited) it.desc = summarize(sn.description) || "";
       it.ytCat = Number(sn.categoryId);
-      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${(sn.tags || []).join(" ")} ${(sn.description || "").slice(0, 400)}`, it.ytCat);
+      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${(sn.tags || []).join(" ")} ${(sn.description || "").slice(0, 400)}`, it.ytCat, it);
     }
   }
   save(); render();
@@ -409,7 +479,7 @@ async function translateAll() {
       }
       if (touched) {
         if (!it.manual && it.category === UNSORTED)
-          it.category = classify(`${it.title} ${it.titleKo || ""} ${it.author} ${it.desc || ""} ${it.descKo || ""}`, it.ytCat);
+          it.category = classify(`${it.title} ${it.titleKo || ""} ${it.author} ${it.desc || ""} ${it.descKo || ""}`, it.ytCat, it);
         save(); render();
       }
     }
@@ -424,6 +494,7 @@ let items = load();
 let platform = "all";
 let query = "";
 let scope = "all";
+let catFilter = "all";
 const SCOPE_TEXT = {
   all: i => `${i.title} ${i.titleKo || ""} ${i.desc || ""} ${i.descKo || ""} ${i.author}`,
   title: i => `${i.title || ""} ${i.titleKo || ""}`,
@@ -482,11 +553,13 @@ async function addLinks(text) {
       if (it.platform === "ig" && info.thumb) target.thumb = info.thumb;
       if (info.desc && !target.descEdited && !target.desc) target.desc = info.desc;
     }
-    target.igTried = target.igTried || it.igTried;
-    if (!target.manual) target.category = classify(`${target.title} ${target.author}`);
+    target.igTried2 = target.igTried2 || it.igTried2;
+    if (!target.manual) target.category = classify(`${target.title} ${target.author} ${target.desc || ""}`, target.ytCat, target);
   }));
   save(); render();
-  if (added) status(`${added}개 정리 완료` + (dup ? ` · 중복 ${dup}개 건너뜀` : ""));
+  if (added) status(`${added}개 정리 완료` + (dup ? ` · 중복 ${dup}개 건너뜀` : "") +
+    (igFail.n ? ` · 인스타 ${igFail.n}개는 정보를 못 불러왔어요 (${igFail.why})` : ""));
+  igFail = { n: 0, why: "" };
   await fetchYTDetails(items.filter(x => fresh.some(f => f.platform === x.platform && f.id === x.id)));
   translateAll();
 }
@@ -510,13 +583,15 @@ function render() {
   const groups = new Map();
   for (const c of categories()) groups.set(c, []);
   for (const i of list) { if (!groups.has(i.category)) groups.set(i.category, []); groups.get(i.category).push(i); }
-  const filled = [...groups].filter(([, v]) => v.length)
+  const allFilled = [...groups].filter(([, v]) => v.length)
     .sort((a, b) => (a[0] === UNSORTED) - (b[0] === UNSORTED) || b[1].length - a[1].length);
+  if (catFilter !== "all" && !allFilled.some(([c]) => c === catFilter)) catFilter = "all";
+  const filled = catFilter === "all" ? allFilled : allFilled.filter(([c]) => c === catFilter);
   const opts = categories();
 
   main.innerHTML =
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
-    (filled.length > 1 ? `<nav class="jump">${filled.map(([c, v], n) => `<a href="#cat-${n}">${esc(c)}<span>${v.length}</span></a>`).join("")}</nav>` : "") +
+    `<nav class="cats" aria-label="카테고리별 보기"><button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>${allFilled.map(([c, v]) => `<button type="button" data-cat="${esc(c)}" aria-pressed="${catFilter === c}">${esc(c)}<span>${v.length}</span></button>`).join("")}</nav>` +
     filled.map(([cat, v], n) => `<section class="shelf" id="cat-${n}">
       <h2>${esc(cat)} <span class="n">${v.length}</span></h2>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
@@ -601,14 +676,14 @@ $("main").addEventListener("blur", e => {
     const it = find(el.closest(".card").dataset.key); if (!it) return;
     const v = el.value.trim(); if (v === (it.desc || "")) return;
     it.desc = v; it.descEdited = true;
-    if (!it.manual && it.category === UNSORTED) it.category = classify(`${it.title} ${it.author} ${v}`, it.ytCat);
+    if (!it.manual && it.category === UNSORTED) it.category = classify(`${it.title} ${it.author} ${v}`, it.ytCat, it);
     save(); render(); translateAll(); return;
   }
   if (el.dataset?.act !== "title") return;
   const it = find(el.closest(".card").dataset.key); if (!it) return;
   const v = el.value.trim(); if (v === it.title) return;
   it.title = v;
-  if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat);
+  if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
   save(); render(); translateAll();
 }, true);
 $("main").addEventListener("input", e => { if (e.target.dataset?.act === "desc") fit(e.target); });
@@ -616,6 +691,8 @@ $("main").addEventListener("keydown", e => {
   if (/^(title|desc)$/.test(e.target.dataset?.act || "") && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.blur(); }
 });
 $("main").addEventListener("click", e => {
+  const cb = e.target.closest("[data-cat]");
+  if (cb) { catFilter = cb.dataset.cat; render(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const b = e.target.closest("[data-act=del]"); if (!b) return;
   const key = b.closest(".card").dataset.key;
   const it = find(key), before = items.slice();
@@ -688,22 +765,22 @@ $("clearKey").addEventListener("click", () => { try { localStorage.removeItem(KE
 // 분류 규칙이 바뀌었을 수 있으니, 직접 고르지 않은 미분류 링크는 다시 분류
 let changed = false;
 for (const it of items) if (!it.manual && it.category === UNSORTED) {
-  const c = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat);
+  const c = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
   if (c !== UNSORTED) { it.category = c; changed = true; }
 }
 if (changed) save();
 render();
 (async () => {
   await fetchYTDetails(items);
-  for (const it of items.filter(i => i.platform === "ig" && !i.igTried && !i.title)) {
-    it.igTried = true;
+  for (const it of items.filter(i => i.platform === "ig" && !i.igTried2 && !i.title)) {
+    it.igTried2 = true;
     const info = await fetchIG(it);
     if (info) {
       if (info.title) it.title = info.title;
       if (info.author) it.author = info.author;
       if (info.thumb) it.thumb = info.thumb;
       if (info.desc && !it.descEdited && !it.desc) it.desc = info.desc;
-      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`);
+      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
     }
     save(); render();
   }
