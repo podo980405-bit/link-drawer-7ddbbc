@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>링크 서랍</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3d5afe">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
 <style>
@@ -192,7 +196,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-18</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-19</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -211,6 +215,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
           <button type="button" data-snd="all" aria-pressed="false">모두</button>
           <button type="button" data-snd="off" aria-pressed="false">끄기</button>
         </span></span>
+      <button class="btn" type="button" id="installBtn" style="min-height:36px" hidden>앱으로 설치</button>
       <button class="btn ghost" type="button" id="syncBtn" aria-expanded="false">기기 동기화</button>
       <button class="btn ghost" type="button" id="setBtn" aria-expanded="false">영상 요약 설정</button>
       <button class="btn ghost" type="button" id="exportBtn">백업 저장</button>
@@ -1206,7 +1211,37 @@ try {
 if (changed) save();
 render();
 lastFp = new Map(items.map(i => [keyOf(i), fp(i)]));
+
+// 앱 설치(홈 화면에 추가)용
+if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+
+// 크롬이 설치를 허락하면 '앱으로 설치' 버튼을 보여 줌
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("installBtn").hidden = false; });
+$("installBtn").addEventListener("click", async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  const { outcome } = await installEvt.userChoice.catch(() => ({ outcome: "dismissed" }));
+  installEvt = null; $("installBtn").hidden = true;
+  status(outcome === "accepted" ? "설치했어요. 이제 유튜브·인스타 앱에서 공유 → '링크 서랍'을 누르면 바로 저장돼요." : "설치를 취소했어요. 크롬 메뉴(⋮) → '앱 설치'로도 할 수 있어요.");
+});
+window.addEventListener("appinstalled", () => { $("installBtn").hidden = true; });
+
+// 휴대폰 '공유'로 들어온 링크 받기: 유튜브·인스타 앱은 링크를 text나 url에 담아 보냄 (?add= 도 받음)
+const shared = (() => {
+  const q = new URLSearchParams(location.search);
+  const t = ["url", "text", "title", "add"].map(k => q.get(k) || "").join(" ").trim();
+  if (t) history.replaceState(null, "", location.pathname);
+  return t;
+})();
+
 (async () => {
+  if (shared) {
+    if (/(youtube\.com|youtu\.be|instagram\.com|instagr\.am)\//i.test(shared)) {
+      await addLinks(shared);
+      window.scrollTo({ top: 0 });
+    } else status("공유한 내용에서 유튜브·인스타 링크를 찾지 못했어요.");
+  }
   await Sync.run();
   await fetchYTDetails(items);
   for (const it of items.filter(i => i.platform === "ig" && !i.igTried2 && !i.title)) {
