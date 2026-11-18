@@ -1,6 +1,6 @@
 // 링크 서랍 서비스 워커: 앱 설치용. 인터넷이 되면 항상 최신 화면을 받고,
 // 안 될 때만 마지막으로 받아 둔 화면을 보여 줌.
-const CACHE = "link-drawer-v1";
+const CACHE = "link-drawer-v2";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
