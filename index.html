@@ -159,7 +159,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-9</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-10</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -621,6 +621,30 @@ function render() {
 }
 function fit(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
 
+// 유튜브 썸네일 후보: 세로 카드는 세로 원본(oar)→고화질 순으로, 가로 카드는 고화질→기본 순으로 시도
+function thumbImg(i) {
+  let list = [i.thumb];
+  if (i.platform === "yt") {
+    const b = `https://i.ytimg.com/vi/${i.id}/`;
+    list = /세로/.test(i.category)
+      ? [b + "oardefault.jpg", b + "oar2.jpg", b + "maxresdefault.jpg", b + "sddefault.jpg", b + "hqdefault.jpg"]
+      : [b + "maxresdefault.jpg", b + "sddefault.jpg", b + "hqdefault.jpg"];
+  }
+  return `<img src="${esc(list[0])}" data-chain="${esc(list.slice(1).join(" "))}" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback>`;
+}
+function nextThumb(img) {
+  const rest = (img.dataset.chain || "").split(" ").filter(Boolean);
+  if (!rest.length) return false;
+  img.dataset.chain = rest.slice(1).join(" ");
+  img.src = rest[0];
+  return true;
+}
+// 없는 화질은 유튜브가 120×90 회색 이미지를 주므로, 그런 건 건너뜀
+document.addEventListener("load", e => {
+  const img = e.target;
+  if (img.tagName === "IMG" && img.closest?.(".thumb") && img.naturalWidth > 0 && img.naturalWidth <= 120) nextThumb(img);
+}, true);
+
 function card(i, opts) {
   const key = `${i.platform}:${i.id}`;
   const label = i.platform === "yt" ? "YouTube" : "Instagram";
@@ -628,7 +652,7 @@ function card(i, opts) {
   return `<article class="card" data-key="${esc(key)}">
     <button class="x" type="button" data-act="del" aria-label="이 링크 삭제" title="삭제">×</button>
     <a class="thumb" href="${esc(i.url)}" target="_blank" rel="noopener">
-      <img src="${esc(i.thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-fallback>
+      ${thumbImg(i)}
       <span class="badge ${i.platform}">${label} ${esc(i.kind)}</span>
     </a>
     <div class="body">
@@ -725,6 +749,7 @@ const refreshed = new Set();
 document.addEventListener("error", e => {
   const img = e.target;
   if (img.tagName !== "IMG" || !img.hasAttribute("data-fallback")) return;
+  if (nextThumb(img)) return;
   img.removeAttribute("data-fallback");
   const card = img.closest(".card");
   const it = card && find(card.dataset.key);
