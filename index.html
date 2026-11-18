@@ -178,7 +178,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-15</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-16</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -258,7 +258,10 @@ const RULES = {
   "운동·스포츠": ["운동","workout","헬스","홈트","요가","yoga","필라테스","pilates","다이어트","diet","러닝","running","fitness","스트레칭","stretching","축구","soccer","football","야구","baseball","농구","basketball","골프","golf","sports","스포츠","하이라이트","highlights","등산","클라이밍"],
   "게임": ["게임","game","gaming","gameplay","롤","lol","리그오브레전드","배그","pubg","마인크래프트","minecraft","발로란트","valorant","스팀","steam","nintendo","닌텐도","스위치","플스","ps5","공략","롤토체스","오버워치","fc온라인","피파"],
   "공부·자기계발": ["공부","study","강의","lecture","강좌","영어","english","수학","자기계발","독서","책 추천","북리뷰","경제","주식","투자","재테크","부동산","tutorial","튜토리얼","하는 법","하는법","how to","꿀팁","tip","tips","자격증","시험","면접","취업"],
-  "IT·테크": ["아이폰","iphone","갤럭시","galaxy","맥북","macbook","ipad","아이패드","언박싱","unboxing","테크","tech","ai","chatgpt","claude","개발","코딩","coding","programming","프로그래밍","노트북","laptop","키보드","keyboard","카메라","camera","애플","apple","삼성","samsung","스마트폰","gadget"],
+  "클로드": ["클로드","claude","클로드 코드","클로드코드","claude code","anthropic","앤트로픽","앤스로픽"],
+  "코덱스": ["코덱스","codex","openai codex","codex cli"],
+  "제미나이": ["제미나이","제미니","gemini","gemini cli","nano banana","나노바나나","나노 바나나"],
+  "IT·테크": ["아이폰","iphone","갤럭시","galaxy","맥북","macbook","ipad","아이패드","언박싱","unboxing","테크","tech","ai","chatgpt","개발","코딩","coding","programming","프로그래밍","노트북","laptop","키보드","keyboard","카메라","camera","애플","apple","삼성","samsung","스마트폰","gadget"],
   "뷰티·패션": ["메이크업","makeup","화장","뷰티","beauty","패션","fashion","ootd","코디","스킨케어","skincare","헤어","hair","네일","nail","룩북","lookbook","하울","haul","향수","perfume","올리브영","쿠션","립"],
   "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
   "동물": ["강아지","고양이","냥이","댕댕","멍멍","dog","cat","puppy","kitten","반려","동물","animal","pet","햄스터","앵무새"],
@@ -281,6 +284,8 @@ const YT_CAT = { 10: "음악", 20: "게임", 17: "운동·스포츠", 19: "여�
 
 // 직캠은 화면 방향으로 나눔: 쇼츠·릴스나 '세로'가 들어가면 세로, 아니면 가로
 const FANCAM = /직캠|fancam|fan cam|focus ?cam|페이스캠|face ?cam|세로캠|가로캠|입덕직캠|직찍/i;
+// AI 도구 이름이 나오면 일반 IT·테크보다 우선
+const AI_TOOLS = ["클로드", "코덱스", "제미나이"];
 function classify(text, ytCat, it) {
   const t = (text || "").toLowerCase();
   if (FANCAM.test(t)) {
@@ -293,7 +298,7 @@ function classify(text, ytCat, it) {
   let best = UNSORTED, score = 0;
   for (const [cat, ms] of MATCHERS) {
     // 인스타툰은 일상 이야기를 많이 다뤄서, 툰 관련 단어가 하나라도 있으면 우선
-    const s = ms.reduce((n, m) => n + (m.test(t) ? 1 : 0), 0) * (cat === "인스타툰" ? 3 : 1) + (cat === hint ? 2 : 0);
+    const s = ms.reduce((n, m) => n + (m.test(t) ? 1 : 0), 0) * (cat === "인스타툰" || AI_TOOLS.includes(cat) ? 3 : 1) + (cat === hint ? 2 : 0);
     if (s > score) { score = s; best = cat; }
   }
   return best;
@@ -1079,6 +1084,16 @@ for (const it of items) if (!it.manual && it.category === UNSORTED) {
   const c = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
   if (c !== UNSORTED) { it.category = c; changed = true; }
 }
+// 클로드·코덱스·제미나이 분류가 새로 생겨서, 직접 고르지 않은 링크 중 해당하는 건 한 번 옮겨 줌
+try {
+  if (localStorage.getItem(KEY + ":rules") !== "ai1") {
+    for (const it of items) if (!it.manual) {
+      const c = classify(`${it.title} ${it.titleKo || ""} ${it.author} ${it.desc || ""} ${it.descKo || ""}`, it.ytCat, it);
+      if (AI_TOOLS.includes(c) && it.category !== c) { it.category = c; changed = true; }
+    }
+    localStorage.setItem(KEY + ":rules", "ai1");
+  }
+} catch {}
 if (changed) save();
 render();
 lastFp = new Map(items.map(i => [keyOf(i), fp(i)]));
