@@ -94,6 +94,9 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
 .card:hover .thumb img { transform: scale(1.03); }
 .thumb .ph { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 15px; background: linear-gradient(135deg, #f9a03f, #d62976 50%, #7b3fe4); }
+.thumb iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .3s ease; }
+.thumb iframe.on { opacity: 1; }
+.badge { z-index: 1; }
 .badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; color: #fff; }
 .badge.yt { background: var(--yt); }
 .badge.ig { background: var(--ig); }
@@ -143,7 +146,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-3</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="ver">버전 11.18-4</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -626,6 +629,34 @@ function card(i, opts) {
 }
 
 // 인스타 썸네일은 로그인 없이 못 가져오는 경우가 많아서 실패하면 그라데이션으로 대체
+// 유튜브 썸네일에 마우스를 0.4초 올려 두면 소리 없이 미리보기 재생 (마우스가 있는 기기만)
+const canHover = window.matchMedia && matchMedia("(hover: hover) and (pointer: fine)").matches;
+let hoverTimer = 0;
+function stopPreview(thumb) {
+  clearTimeout(hoverTimer);
+  thumb?.querySelector("iframe")?.remove();
+}
+if (canHover) {
+  $("main").addEventListener("mouseover", e => {
+    const thumb = e.target.closest(".thumb"); if (!thumb || thumb.contains(e.relatedTarget)) return;
+    const it = find(thumb.closest(".card").dataset.key); if (!it || it.platform !== "yt") return;
+    clearTimeout(hoverTimer);
+    hoverTimer = setTimeout(() => {
+      if (thumb.querySelector("iframe")) return;
+      const f = document.createElement("iframe");
+      f.src = `https://www.youtube-nocookie.com/embed/${it.id}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&loop=1&playlist=${it.id}`;
+      f.allow = "autoplay; encrypted-media";
+      f.tabIndex = -1; f.title = "미리보기";
+      f.addEventListener("load", () => setTimeout(() => f.classList.add("on"), 250));
+      thumb.appendChild(f);
+    }, 400);
+  });
+  $("main").addEventListener("mouseout", e => {
+    const thumb = e.target.closest(".thumb"); if (!thumb || thumb.contains(e.relatedTarget)) return;
+    stopPreview(thumb);
+  });
+}
+
 const refreshed = new Set();
 document.addEventListener("error", e => {
   const img = e.target;
