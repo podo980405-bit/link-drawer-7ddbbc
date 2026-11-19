@@ -208,13 +208,30 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .searchbar { max-width: none; flex-basis: 100%; }
 }
+/* '전체' 보기: 카테고리마다 한 줄, 좌우로 넘기기 */
+.shelfhead { display: flex; align-items: center; gap: 12px; }
+.shelfhead h2 { flex: 1; min-width: 0; }
+.rownav { display: none; gap: 6px; }
+@media (hover: hover) and (pointer: fine) { .shelf.row .rownav { display: flex; } }
+.rownav button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; display: grid; place-items: center; }
+.rownav button svg { width: 16px; height: 16px; }
+.rownav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.rownav button:disabled { opacity: .35; cursor: default; }
+.shelf.row .grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 260px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-behavior: smooth; padding-bottom: 10px; scrollbar-width: thin; align-items: start; }
+.shelf.row.portrait .grid { grid-template-columns: none; grid-auto-columns: 222px; }
+.shelf.row .grid > .card { scroll-snap-align: start; }
+@media (max-width: 560px) {
+  .shelf.row .grid { grid-auto-columns: 72%; }
+  .shelf.row.portrait .grid { grid-auto-columns: 44%; }
+}
+@media (prefers-reduced-motion: reduce) { .shelf.row .grid { scroll-behavior: auto; } }
 @media (prefers-reduced-motion: reduce) { .thumb img { transition: none; } }
 </style>
 </head>
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-2</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-3</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -883,11 +900,20 @@ function render() {
     (catEdit
       ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, <b>한 번 누르면</b> 숨기기 ↔ 보이기가 바뀌어요. 숨긴 카테고리는 '숨김'으로 표시돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
       : "") + `</nav>`) +
-    filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}" id="cat-${n}">
-      <h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
+    filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}${catFilter === "all" ? " row" : ""}" id="cat-${n}">
+      <div class="shelfhead"><h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
+        <div class="rownav"><button type="button" data-scroll="-1" aria-label="${esc(cat)} 왼쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><button type="button" data-scroll="1" aria-label="${esc(cat)} 오른쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div></div>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
   main.querySelectorAll(".desc").forEach(fit);
+  main.querySelectorAll(".shelf.row .grid").forEach(g => { g.addEventListener("scroll", () => rowNav(g), { passive: true }); rowNav(g); });
   fillCatMenu(allFilled, list.length, hiddenHere.size);
+}
+// 좌우 화살표: 끝에 닿으면 흐리게
+function rowNav(g) {
+  const [l, r] = g.closest(".shelf").querySelectorAll(".rownav button");
+  if (!l) return;
+  l.disabled = g.scrollLeft <= 2;
+  r.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
 }
 function fillCatMenu(allFilled, total, hiddenN) {
   $("catLabel").textContent = catFilter === "all" ? "전체" : catFilter;
@@ -1106,6 +1132,12 @@ $("main").addEventListener("keydown", e => {
   if (/^(title|desc)$/.test(e.target.dataset?.act || "") && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.target.blur(); }
 });
 $("main").addEventListener("click", e => {
+  const sc = e.target.closest("[data-scroll]");
+  if (sc) {
+    const g = sc.closest(".shelf").querySelector(".grid");
+    g.scrollBy({ left: Number(sc.dataset.scroll) * g.clientWidth * 0.9 });
+    return;
+  }
   const cp = e.target.closest("[data-act=copy]");
   if (cp) {
     const it = find(cp.closest(".card").dataset.key); if (!it) return;
