@@ -105,6 +105,10 @@ main .wrap { padding-block: 24px 64px; display: grid; gap: 36px; }
 .cats.editing button.chip::before { content: "⠿"; margin-right: 6px; color: var(--muted); }
 .cats.editing button.chip[aria-pressed="true"] { background: var(--surface); color: var(--fg); border-color: var(--line); font-weight: 400; }
 .cats.editing button.chip[aria-pressed="true"] span { color: var(--muted); }
+.cats button.chip.off { opacity: .5; text-decoration: line-through; }
+.cats.editing button.chip.off { opacity: .6; border-style: dashed; }
+.cats.editing button.chip.off::after { content: "숨김"; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--danger); text-decoration: none; display: inline-block; }
+.shelf h2 .hid { font-size: 12px; font-weight: 700; color: var(--danger); }
 .cats button.chip.dragging { opacity: .45; cursor: grabbing; }
 .ver { color: var(--muted); font-size: 12px; }
 .brand .syncdot { margin-left: auto; margin-right: 10px; }
@@ -196,7 +200,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.18-20</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-1</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -633,7 +637,7 @@ const Sync = {
   },
   pack() {
     // 인스타 썸네일 그림(용량 큼)은 빼고 올림. 다른 기기에서는 썸네일을 다시 받아 옴
-    return JSON.stringify({ v: 1, saved: Date.now(), deleted, catOrder,
+    return JSON.stringify({ v: 1, saved: Date.now(), deleted, catOrder, hiddenCats,
       items: items.map(i => (i.thumb || "").startsWith("data:") ? { ...i, thumb: `https://www.instagram.com/p/${i.id}/media/?size=l` } : i) });
   },
   merge(remote) {
@@ -661,6 +665,11 @@ const Sync = {
       catOrder = remote.catOrder;
       try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
     }
+    if (remote.hiddenCats && (remote.hiddenCats.at || 0) > (hiddenCats.at || 0)) {
+      orderChanged = orderChanged || JSON.stringify(remote.hiddenCats.list) !== JSON.stringify(hiddenCats.list);
+      hiddenCats = remote.hiddenCats;
+      try { localStorage.setItem(KEY + ":hidden", JSON.stringify(hiddenCats)); } catch {}
+    }
     return changed || orderChanged;
   },
   async run() {
@@ -672,7 +681,7 @@ const Sync = {
       if (id) { try { remote = await this.pull(id); } catch (e) { if (e.status === 404) { this.setGist(""); id = await this.findGist(); if (id) remote = await this.pull(id); } else throw e; } }
       if (remote && this.merge(remote)) { save(true); render(); }
       const body = this.pack();
-      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted) && JSON.stringify(remote.catOrder || null) === JSON.stringify(catOrder || null);
+      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted) && JSON.stringify(remote.catOrder || null) === JSON.stringify(catOrder || null) && JSON.stringify(remote.hiddenCats || null) === JSON.stringify(hiddenCats);
       if (!id) {
         const g = await this.api("/gists", { method: "POST", body: JSON.stringify({ public: false, description: "링크 서랍 동기화 (지우지 마세요)", files: { [SYNC_FILE]: { content: body } } }) });
         this.setGist(g.id);
@@ -739,6 +748,17 @@ function save(fromSync) {
 // 카테고리 순서: 직접 바꾼 적이 있으면 그 순서, 없으면 기본(화면은 개수 많은 순)
 let catOrder = (() => { try { return JSON.parse(localStorage.getItem(KEY + ":catorder")) || null; } catch { return null; } })();
 let catEdit = false;
+// 숨긴 카테고리 (다른 기기와 동기화)
+let hiddenCats = (() => { try { return JSON.parse(localStorage.getItem(KEY + ":hidden")) || { list: [], at: 0 }; } catch { return { list: [], at: 0 }; } })();
+let showHidden = false, suppressClick = false;
+const isHidden = c => hiddenCats.list.includes(c);
+function toggleHidden(c) {
+  const set = new Set(hiddenCats.list);
+  set.has(c) ? set.delete(c) : set.add(c);
+  hiddenCats = { list: [...set], at: Date.now() };
+  try { localStorage.setItem(KEY + ":hidden", JSON.stringify(hiddenCats)); } catch {}
+  Sync.soon();
+}
 const customOrder = () => !!(catOrder && catOrder.list && catOrder.list.length);
 function saveCatOrder(list) {
   catOrder = { list, at: Date.now() };
@@ -809,14 +829,21 @@ function render() {
   const main = $("main");
   $("total").textContent = items.length ? `${items.length}개` : "";
   const q = query.trim().toLowerCase();
-  const list = items.filter(i => (platform === "all" || (platform === "post" ? i.kind === "게시물" : i.platform === platform)) &&
+  const baseList = items.filter(i => (platform === "all" || (platform === "post" ? i.kind === "게시물" : i.platform === platform)) &&
     (!q || q.split(/\s+/).every(w => SCOPE_TEXT[scope](i).toLowerCase().includes(w))));
+  const hiddenHere = new Set(baseList.filter(i => isHidden(i.category)).map(i => i.category));
+  const list = catEdit || showHidden ? baseList : baseList.filter(i => !isHidden(i.category));
 
   if (!items.length) {
     main.innerHTML = `<div class="empty"><strong>아직 저장한 링크가 없어요</strong>
       <span>위 칸에 유튜브·인스타 링크를 붙여넣고 <b>정리하기</b>를 누르면<br>썸네일과 함께 비슷한 주제끼리 묶어 드려요.</span>
       <button class="btn ghost" type="button" id="demo">예시 링크로 체험해 보기</button></div>`;
     $("demo").onclick = () => addLinks("https://www.youtube.com/watch?v=9bZkp7q19f0 https://youtu.be/dQw4w9WgXcQ https://www.youtube.com/watch?v=jNQXAC9IVRw");
+    return;
+  }
+  if (!list.length && baseList.length) {
+    main.innerHTML = `<div class="empty"><strong>숨긴 카테고리에만 링크가 있어요</strong><span>숨긴 카테고리 ${hiddenHere.size}개: ${[...hiddenHere].map(esc).join(", ")}</span>
+      <button class="btn ghost" type="button" data-showhidden>숨긴 카테고리 보기</button></div>`;
     return;
   }
   if (!list.length) { main.innerHTML = `<div class="empty"><strong>${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}'를 찾지 못했어요</strong><span>검색 범위를 '제목+내용+이름'으로 넓히거나 플랫폼 필터를 '전체'로 바꿔 보세요.</span></div>`; return; }
@@ -834,12 +861,12 @@ function render() {
 
   main.innerHTML =
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
-    `<nav class="cats${catEdit ? " editing" : ""}" aria-label="카테고리별 보기">${catEdit ? "" : `<button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>`}${allFilled.map(([c, v]) => `<button type="button" class="chip" data-cat="${esc(c)}" aria-pressed="${catFilter === c}">${esc(c)}<span>${v.length}</span></button>`).join("")}` +
+    `<nav class="cats${catEdit ? " editing" : ""}" aria-label="카테고리별 보기">${catEdit ? "" : `<button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>`}${allFilled.map(([c, v]) => `<button type="button" class="chip${isHidden(c) ? " off" : ""}" data-cat="${esc(c)}" aria-pressed="${catFilter === c}"${catEdit ? ` aria-label="${esc(c)} ${isHidden(c) ? "숨김 상태, 누르면 보이기" : "누르면 숨기기"}"` : ""}>${esc(c)}<span>${v.length}</span></button>`).join("")}` +
     (catEdit
-      ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint">버튼을 끌어서 원하는 자리에 놓으세요. 키보드는 버튼을 고르고 ← → 키로 옮겨요. 바꾼 순서는 다른 기기에도 똑같이 맞춰져요.</span>`
-      : `<button type="button" class="tool" data-catedit>순서 바꾸기</button>`) + `</nav>` +
+      ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, <b>한 번 누르면</b> 숨기기 ↔ 보이기가 바뀌어요. 숨긴 카테고리는 '숨김'으로 표시돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
+      : `<button type="button" class="tool" data-catedit>순서·숨기기</button>${hiddenHere.size ? `<button type="button" class="tool" data-showhidden>${showHidden ? "숨긴 카테고리 다시 숨기기" : `숨긴 카테고리 ${hiddenHere.size}개 보기`}</button>` : ""}`) + `</nav>` +
     filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}" id="cat-${n}">
-      <h2>${esc(cat)} <span class="n">${v.length}</span></h2>
+      <h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
   main.querySelectorAll(".desc").forEach(fit);
 }
@@ -966,7 +993,10 @@ function endDrag(e) {
   if (!drag || e.pointerId !== drag.id) return;
   const { chip, moved } = drag; drag = null;
   chip.classList.remove("dragging");
-  if (moved) { applyVisibleOrder([...chip.parentNode.querySelectorAll("button.chip")].map(b => b.dataset.cat)); render(); }
+  if (moved) {
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 400);
+    applyVisibleOrder([...chip.parentNode.querySelectorAll("button.chip")].map(b => b.dataset.cat)); render();
+  }
 }
 $("main").addEventListener("pointerup", endDrag);
 $("main").addEventListener("pointercancel", endDrag);
@@ -1075,7 +1105,15 @@ $("main").addEventListener("click", e => {
     try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
     Sync.soon(); render(); status("개수 많은 순서로 되돌렸어요"); return;
   }
-  if (catEdit && e.target.closest(".cats [data-cat]")) return; // 순서 바꾸는 중에는 눌러도 거르지 않음
+  if (e.target.closest("[data-showhidden]")) { showHidden = !showHidden; render(); return; }
+  const ec = catEdit && e.target.closest(".cats button.chip");
+  if (ec) { // 편집 중에 누르면 숨기기 ↔ 보이기 (끌어서 옮긴 직후의 클릭은 무시)
+    if (suppressClick) { suppressClick = false; return; }
+    const c = ec.dataset.cat; toggleHidden(c); render();
+    status(isHidden(c) ? `'${c}' 카테고리를 숨겼어요` : `'${c}' 카테고리를 다시 보이게 했어요`);
+    [...document.querySelectorAll(".cats button.chip")].find(b => b.dataset.cat === c)?.focus();
+    return;
+  }
   const cb = e.target.closest("[data-cat]");
   if (cb) { catFilter = cb.dataset.cat; render(); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   const b = e.target.closest("[data-act=del]"); if (!b) return;
