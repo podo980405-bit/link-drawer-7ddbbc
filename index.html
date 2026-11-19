@@ -238,7 +238,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-9</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-10</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -344,7 +344,6 @@ const RULES = {
   "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
   "동물": ["강아지","고양이","냥이","댕댕","멍멍","dog","cat","puppy","kitten","반려","동물","animal","pet","햄스터","앵무새"],
   "일상·브이로그": ["브이로그","vlog","일상","daily","grwm","루틴","routine","자취","직장인","what i eat","하루"],
-  "직캠": [],
   "카드뉴스": ["카드뉴스","카드 뉴스","총정리","한눈에","한 장으로","요약","정리했","정리해","알아보자","알아봅시다","인포그래픽","infographic","swipe","넘겨","슬라이드","저장해","저장하고"],
   "인스타툰": ["인스타툰","툰","웹툰","만화","그림일기","그림 일기","컷툰","네컷","4컷","연재","toon","toons","instatoon","webtoon","comic","comics","cartoon"],
   "유머·밈": ["웃긴","레전드","밈","meme","funny","몰카","prank","짤","ㅋㅋ","개그","코미디","comedy"]
@@ -365,7 +364,7 @@ const FANCAM = /직캠|fancam|fan cam|focus ?cam|페이스캠|face ?cam|세로�
 const AI_TOOLS = ["클로드", "코덱스", "제미나이", "ComfyUI"];
 function classify(text, ytCat, it) {
   const t = (text || "").toLowerCase();
-  if (FANCAM.test(t)) return "직캠"; // 가로/세로는 카테고리 안에서 자동으로 나눔
+  if (FANCAM.test(t)) return "음악"; // 직캠은 음악으로. 가로/세로는 카테고리 안에서 자동으로 나눔
   const hint = YT_CAT[ytCat];
   if (!t.trim() && !hint) return UNSORTED;
   let best = UNSORTED, score = 0;
@@ -848,13 +847,14 @@ function offerUndo(msg, snap) {
 function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
 // 동기화용 변경 기록: 바뀐 링크엔 수정 시각을, 지운 링크엔 삭제 시각을 남김
 const keyOf = i => `${i.platform}:${i.id}`;
-const OLD_FANCAM = { "직캠(가로)": "h", "직캠(세로)": "v" };
+// 예전 직캠 카테고리들은 모두 '음악'으로 (어느 기기에서 왔든)
+const OLD_FANCAM = { "직캠(가로)": "h", "직캠(세로)": "v", "직캠": "" };
 function normalizeCat(i) {
-  if (!OLD_FANCAM[i.category]) return false;
+  if (!(i.category in OLD_FANCAM)) return false;
   const want = OLD_FANCAM[i.category];
-  i.category = "직캠";
+  i.category = "음악";
   // 원래 들어 있던 방향을 기억 (자동 판단과 다를 때만)
-  if (!i.shape && autoShape(i) !== want) i.shape = want;
+  if (want && !i.shape && autoShape(i) !== want) i.shape = want;
   return true;
 }
 const fp = i => { const { updatedAt, thumb, ...rest } = i; return JSON.stringify(rest); };
@@ -1513,16 +1513,17 @@ try {
   }
 } catch {}
 try {
-  if (localStorage.getItem(KEY + ":fancam") !== "1") {
+  if (localStorage.getItem(KEY + ":fancam") !== "2") {
     for (const it of items) if (normalizeCat(it)) changed = true;
-    const merge = list => { const out = []; for (const c of list) { const n = OLD_FANCAM[c] ? "직캠" : c; if (!out.includes(n)) out.push(n); } return out; };
-    if (customOrder() && catOrder.list.some(c => OLD_FANCAM[c])) saveCatOrder(merge(catOrder.list));
-    if (hiddenCats.list.some(c => OLD_FANCAM[c])) {
-      const bothHidden = hiddenCats.list.includes("직캠(가로)") && hiddenCats.list.includes("직캠(세로)");
-      hiddenCats = { list: merge(hiddenCats.list.filter(c => !OLD_FANCAM[c] || bothHidden)), at: Date.now() };
+    // 순서: 직캠 자리는 음악으로 합침 (음악이 더 앞에 있으면 그 자리 유지)
+    const merge = list => { const out = []; for (const c of list) { const n = c in OLD_FANCAM ? "음악" : c; if (!out.includes(n)) out.push(n); } return out; };
+    if (customOrder() && catOrder.list.some(c => c in OLD_FANCAM)) saveCatOrder(merge(catOrder.list));
+    // 숨김: 직캠을 숨겼다고 음악까지 숨기진 않음
+    if (hiddenCats.list.some(c => c in OLD_FANCAM)) {
+      hiddenCats = { list: hiddenCats.list.filter(c => !(c in OLD_FANCAM)), at: Date.now() };
       localStorage.setItem(KEY + ":hidden", JSON.stringify(hiddenCats));
     }
-    localStorage.setItem(KEY + ":fancam", "1");
+    localStorage.setItem(KEY + ":fancam", "2");
   }
 } catch {}
 if (changed) save();
