@@ -233,7 +233,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-6</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-7</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -535,8 +535,37 @@ function parseYTPost(html) {
   if (thumb.startsWith("//")) thumb = "https:" + thumb;
   return text || thumb ? { text, author, thumb } : null;
 }
+// 무료 페이지 읽기 서비스(Jina Reader)로 게시물 글·채널·사진 읽기 (가입 없이 1분에 20번까지)
+async function fetchYTPostJina(item) {
+  const r = await fetch("https://r.jina.ai/" + item.url, { headers: { Accept: "application/json" } });
+  if (!r.ok) throw new Error("Jina " + r.status);
+  const d = (await r.json())?.data || {};
+  let text = (d.title || "").trim();
+  if (!text || /^youtube$/i.test(text) || GENERIC_YT.test(text)) text = "";
+  const md = d.content || "";
+  // 게시물 작성자: 채널 사진 링크의 이름, 또는 '[채널](…/@…)[n days ago]'
+  const a1 = md.match(/\[!\[Image \d+: ([^\]]+)\]\(https:\/\/yt3\.(?:googleusercontent|ggpht)\.com[^)]*\)\]\(https:\/\/www\.youtube\.com\/@/);
+  const a2 = md.match(/\[([^\]!][^\]]*)\]\(https:\/\/www\.youtube\.com\/@[^)]+\)\[[^\]]*(?:ago|전)\]/);
+  const author = ((a1 && a1[1]) || (a2 && a2[1]) || "").trim();
+  // 게시물 사진: 프로필 사진(작은 동그라미)은 빼고 첫 번째 큰 사진
+  const imgs = [...md.matchAll(/!\[Image[^\]]*\]\((https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[^)\s]+)\)/g)].map(m => m[1])
+    .filter(u => !/=s\d{2,3}-c-k|default-user|\/ytc\//.test(u));
+  const thumb = imgs[0] || "";
+  if (!text && !thumb) return null;
+  return { text, author, thumb };
+}
 async function fetchYTPost(item) {
   const why = [];
+  if (!relayUrl()) {
+    try {
+      const got = await fetchYTPostJina(item);
+      if (got) {
+        const { title, desc } = splitCaption(got.text);
+        return { title: title || got.author || "유튜브 게시물", author: got.author, desc, thumb: got.thumb ? await shrink(got.thumb) : "" };
+      }
+      why.push("Jina: 게시물 내용 없음");
+    } catch (e) { why.push(/429/.test(e.message) ? "Jina: 잠깐 너무 많이 요청함(1분 뒤 다시)" : "Jina: 연결 실패"); }
+  }
   for (const [n, px] of PROXIES.entries()) {
     try {
       const r = await fetch(px(item.url + (item.url.includes("?") ? "&" : "?") + "hl=ko&gl=KR"));
@@ -1442,8 +1471,8 @@ lastFp = new Map(items.map(i => [keyOf(i), fp(i)]));
 async function retryMissing(force) {
   let n = 0;
   for (const it of items.filter(i => (force ? !i.title || !(i.thumb || "").startsWith("data:") : !i.title) &&
-      ((i.platform === "ig" && (force || !i.igTried2)) || (i.kind === "게시물" && i.platform === "yt" && (force || !i.postTried2))))) {
-    if (it.platform === "ig") it.igTried2 = true; else it.postTried2 = true;
+      ((i.platform === "ig" && (force || !i.igTried2)) || (i.kind === "게시물" && i.platform === "yt" && (force || !i.postTried3))))) {
+    if (it.platform === "ig") it.igTried2 = true; else it.postTried3 = true;
     const info = it.platform === "ig" ? await fetchIG(it) : await fetchYTPost(it);
     if (info) {
       n++;
