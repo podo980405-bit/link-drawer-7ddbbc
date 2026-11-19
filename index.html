@@ -79,6 +79,20 @@ header.top .wrap { padding-block: 16px; display: grid; gap: 12px; }
 .scopemenu li { padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .scopemenu li:hover, .scopemenu li.hl { background: var(--bg); }
 .scopemenu li[aria-selected="true"] { color: var(--accent); font-weight: 700; }
+.catbox { position: relative; flex: none; }
+#catBtn { min-height: 38px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 0 12px 0 16px; border-radius: 999px; cursor: pointer; font-size: 14px; white-space: nowrap; max-width: 100%; }
+#catBtn:hover, #catBtn[aria-expanded="true"] { border-color: var(--accent); }
+#catBtn .lbl { color: var(--muted); }
+#catBtn b { max-width: 12em; overflow: hidden; text-overflow: ellipsis; }
+#catBtn .n { font-family: var(--font-num); color: var(--muted); font-variant-numeric: tabular-nums; }
+#catBtn svg { width: 14px; height: 14px; color: var(--muted); transition: transform .15s; }
+#catBtn[aria-expanded="true"] svg { transform: rotate(180deg); }
+#catMenu { min-width: 220px; max-height: min(60vh, 480px); overflow-y: auto; }
+#catMenu li { display: flex; justify-content: space-between; gap: 16px; }
+#catMenu li .n { font-family: var(--font-num); color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+#catMenu li.off { color: var(--muted); text-decoration: line-through; }
+#catMenu li.sep { padding: 0; margin: 6px 4px; height: 1px; background: var(--line); cursor: default; pointer-events: none; }
+#catMenu li.act { color: var(--accent); font-weight: 700; justify-content: flex-start; }
 .searchbox { position: relative; flex: 1 1 auto; min-width: 0; }
 .searchbox svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
 .search { width: 100%; height: 100%; padding: 8px 40px 8px 36px; border: 0; border-radius: 0 999px 999px 0; background: transparent; outline: none; }
@@ -187,7 +201,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .empty strong { color: var(--fg); font-size: 17px; }
 
 @media (max-width: 560px) {
-  header.top { position: static; }
+  header.top { position: relative; z-index: 6; }
   section.shelf { scroll-margin-top: 16px; }
   .toast { width: calc(100% - 32px); justify-content: space-between; }
   .add { flex-direction: column; }
@@ -200,7 +214,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-1</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-2</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -238,6 +252,10 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
           </ul>
         </div>
         <div class="searchbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input class="search" id="q" type="search" placeholder="저장한 링크 검색" aria-label="저장한 링크 검색"><kbd>/</kbd></div>
+      </div>
+      <div class="catbox">
+        <button type="button" id="catBtn" aria-haspopup="listbox" aria-expanded="false"><span class="lbl">카테고리</span><b id="catLabel">전체</b><span class="n" id="catCount"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <ul class="scopemenu" id="catMenu" role="listbox" aria-label="카테고리" hidden></ul>
       </div>
     </div>
     <div class="settings" id="syncPanel" hidden>
@@ -861,14 +879,25 @@ function render() {
 
   main.innerHTML =
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
-    `<nav class="cats${catEdit ? " editing" : ""}" aria-label="카테고리별 보기">${catEdit ? "" : `<button type="button" data-cat="all" aria-pressed="${catFilter === "all"}">전체<span>${list.length}</span></button>`}${allFilled.map(([c, v]) => `<button type="button" class="chip${isHidden(c) ? " off" : ""}" data-cat="${esc(c)}" aria-pressed="${catFilter === c}"${catEdit ? ` aria-label="${esc(c)} ${isHidden(c) ? "숨김 상태, 누르면 보이기" : "누르면 숨기기"}"` : ""}>${esc(c)}<span>${v.length}</span></button>`).join("")}` +
+    (!catEdit ? "" : `<nav class="cats editing" aria-label="카테고리 순서·숨기기">${allFilled.map(([c, v]) => `<button type="button" class="chip${isHidden(c) ? " off" : ""}" data-cat="${esc(c)}" aria-pressed="${catFilter === c}"${catEdit ? ` aria-label="${esc(c)} ${isHidden(c) ? "숨김 상태, 누르면 보이기" : "누르면 숨기기"}"` : ""}>${esc(c)}<span>${v.length}</span></button>`).join("")}` +
     (catEdit
       ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, <b>한 번 누르면</b> 숨기기 ↔ 보이기가 바뀌어요. 숨긴 카테고리는 '숨김'으로 표시돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
-      : `<button type="button" class="tool" data-catedit>순서·숨기기</button>${hiddenHere.size ? `<button type="button" class="tool" data-showhidden>${showHidden ? "숨긴 카테고리 다시 숨기기" : `숨긴 카테고리 ${hiddenHere.size}개 보기`}</button>` : ""}`) + `</nav>` +
+      : "") + `</nav>`) +
     filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}" id="cat-${n}">
       <h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
       <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
   main.querySelectorAll(".desc").forEach(fit);
+  fillCatMenu(allFilled, list.length, hiddenHere.size);
+}
+function fillCatMenu(allFilled, total, hiddenN) {
+  $("catLabel").textContent = catFilter === "all" ? "전체" : catFilter;
+  $("catCount").textContent = catFilter === "all" ? total : (allFilled.find(([c]) => c === catFilter)?.[1].length || 0);
+  $("catMenu").innerHTML =
+    `<li role="option" data-cat="all" aria-selected="${catFilter === "all"}"><span>전체</span><span class="n">${total}</span></li>` +
+    allFilled.map(([c, v]) => `<li role="option" data-cat="${esc(c)}" aria-selected="${catFilter === c}"${isHidden(c) ? ' class="off"' : ""}><span>${esc(c)}</span><span class="n">${v.length}</span></li>`).join("") +
+    `<li class="sep" aria-hidden="true"></li>` +
+    `<li class="act" data-catedit>${catEdit ? "순서·숨기기 끝내기" : "순서 바꾸기 · 숨기기"}</li>` +
+    (hiddenN ? `<li class="act" data-showhidden>${showHidden ? "숨긴 카테고리 다시 숨기기" : `숨긴 카테고리 ${hiddenN}개 보기`}</li>` : "");
 }
 function fit(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
 
@@ -1158,6 +1187,39 @@ scopeBtn.addEventListener("keydown", e => {
   scopeOpts.forEach((o, k) => o.classList.toggle("hl", k === n));
 });
 document.addEventListener("click", e => { if (!e.target.closest(".scopebox")) openScope(false); });
+
+// 카테고리 드롭다운
+const catBtn = $("catBtn"), catMenu = $("catMenu");
+const catOpts = () => [...catMenu.querySelectorAll("li:not(.sep)")];
+function openCat(open) {
+  catMenu.hidden = !open; catBtn.setAttribute("aria-expanded", String(open));
+  catOpts().forEach(o => o.classList.toggle("hl", o.getAttribute("aria-selected") === "true"));
+}
+function pickCat(li) {
+  openCat(false);
+  if (li.hasAttribute("data-catedit")) {
+    catEdit = !catEdit; if (catEdit) catFilter = "all";
+    render(); window.scrollTo({ top: 0, behavior: "smooth" });
+    if (!catEdit && customOrder()) status("카테고리 순서를 저장했어요");
+    return;
+  }
+  if (li.hasAttribute("data-showhidden")) { showHidden = !showHidden; render(); return; }
+  catFilter = li.dataset.cat; render(); window.scrollTo({ top: 0, behavior: "smooth" });
+}
+catBtn.addEventListener("click", () => openCat(catMenu.hidden));
+catMenu.addEventListener("click", e => { const li = e.target.closest("li:not(.sep)"); if (li) pickCat(li); });
+catBtn.addEventListener("keydown", e => {
+  if (!["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) return;
+  e.preventDefault();
+  if (e.key === "Escape") return openCat(false);
+  if (catMenu.hidden) return openCat(true);
+  const opts = catOpts(), i = opts.findIndex(o => o.classList.contains("hl"));
+  if (e.key === "Enter") return pickCat(opts[Math.max(0, i)]);
+  const n = (i + (e.key === "ArrowDown" ? 1 : -1) + opts.length) % opts.length;
+  opts.forEach((o, k) => o.classList.toggle("hl", k === n));
+  opts[n].scrollIntoView({ block: "nearest" });
+});
+document.addEventListener("click", e => { if (!e.target.closest(".catbox")) openCat(false); });
 $("undoBtn").addEventListener("click", () => {
   if (!undoSnap) return;
   items = undoSnap; undoSnap = null; save(); render();
