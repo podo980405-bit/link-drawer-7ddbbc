@@ -154,14 +154,14 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 .thumb.post img { object-position: top; }
 /* '(세로)' 분류: 카드를 세로(9:16)로. 유튜브 썸네일은 가운데를 잘라 세로 화면만 보이게 */
 /* '(세로)' 분류: 유튜브 홈의 쇼츠 칸처럼 2:3 썸네일, 테두리 없는 카드, 넓은 화면에서 한 줄 5개 안팎 */
-.shelf.portrait .grid { grid-template-columns: repeat(auto-fill, minmax(min(210px, 45%), 1fr)); gap: 16px; }
-@media (max-width: 560px) { .shelf.portrait .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
-.shelf.portrait .card { background: transparent; border: 0; border-radius: 0; overflow: visible; }
-.shelf.portrait .thumb { aspect-ratio: 2 / 3; border-radius: 12px; }
-.shelf.portrait .body { padding: 10px 2px 4px; }
-.shelf.portrait .title { font-size: 15px; font-weight: 500; line-height: 1.45; }
-.shelf.portrait .row .del { display: none; }
-.shelf.portrait .thumb iframe { width: 267%; left: 50%; transform: translateX(-50%); }
+.sub.portrait .grid { grid-template-columns: repeat(auto-fill, minmax(min(210px, 45%), 1fr)); gap: 16px; }
+@media (max-width: 560px) { .sub.portrait .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+.sub.portrait .card { background: transparent; border: 0; border-radius: 0; overflow: visible; }
+.sub.portrait .thumb { aspect-ratio: 2 / 3; border-radius: 12px; }
+.sub.portrait .body { padding: 10px 2px 4px; }
+.sub.portrait .title { font-size: 15px; font-weight: 500; line-height: 1.45; }
+.sub.portrait .row .del { display: none; }
+.sub.portrait .thumb iframe { width: 267%; left: 50%; transform: translateX(-50%); }
 .badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 6px; color: #fff; }
 .badge.yt { background: var(--yt); }
 .badge.ig { background: var(--ig); }
@@ -212,28 +212,33 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 }
 /* '전체' 보기: 카테고리마다 한 줄, 좌우로 넘기기 */
 .shelfhead { display: flex; align-items: center; gap: 12px; }
+.sub { display: grid; gap: 10px; min-width: 0; }
+.subs { display: grid; gap: 18px; min-width: 0; }
+.subhead { display: flex; align-items: center; gap: 12px; }
+.subhead h3 { flex: 1; margin: 0; font-size: 14px; font-weight: 700; color: var(--muted); display: flex; align-items: baseline; gap: 6px; }
+.subhead h3 .n { font-family: var(--font-num); font-weight: 500; font-variant-numeric: tabular-nums; }
 .shelfhead h2 { flex: 1; min-width: 0; }
 .rownav { display: none; gap: 6px; }
-@media (hover: hover) and (pointer: fine) { .shelf.row .rownav { display: flex; } }
+@media (hover: hover) and (pointer: fine) { .sub.lane .rownav { display: flex; } }
 .rownav button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; display: grid; place-items: center; }
 .rownav button svg { width: 16px; height: 16px; }
 .rownav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .rownav button:disabled { opacity: .35; cursor: default; }
-.shelf.row .grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 260px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-behavior: smooth; padding-bottom: 10px; scrollbar-width: thin; align-items: start; }
-.shelf.row.portrait .grid { grid-template-columns: none; grid-auto-columns: 222px; }
-.shelf.row .grid > .card { scroll-snap-align: start; }
+.sub.lane .grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 260px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-behavior: smooth; padding-bottom: 10px; scrollbar-width: thin; align-items: start; }
+.sub.lane.portrait .grid { grid-template-columns: none; grid-auto-columns: 222px; }
+.sub.lane .grid > .card { scroll-snap-align: start; }
 @media (max-width: 560px) {
-  .shelf.row .grid { grid-auto-columns: 72%; }
-  .shelf.row.portrait .grid { grid-auto-columns: 44%; }
+  .sub.lane .grid { grid-auto-columns: 72%; }
+  .sub.lane.portrait .grid { grid-auto-columns: 44%; }
 }
-@media (prefers-reduced-motion: reduce) { .shelf.row .grid { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) { .sub.lane .grid { scroll-behavior: auto; } }
 @media (prefers-reduced-motion: reduce) { .thumb img { transition: none; } }
 </style>
 </head>
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-7</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-8</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -987,17 +992,38 @@ function render() {
     (catEdit
       ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, 버튼을 <b>한 번 누르면</b> <b>숨기기</b> / <b>숨김 해제</b>가 돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
       : "") + `</nav>`) +
-    filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}${catFilter === "all" ? " row" : ""}" id="cat-${n}">
-      <div class="shelfhead"><h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
-        <div class="rownav"><button type="button" data-scroll="-1" aria-label="${esc(cat)} 왼쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><button type="button" data-scroll="1" aria-label="${esc(cat)} 오른쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div></div>
-      <div class="grid">${v.map(i => card(i, opts)).join("")}</div></section>`).join("");
+    filled.map(([cat, v], n) => shelfHTML(cat, v, n, opts)).join("");
   main.querySelectorAll(".desc").forEach(fit);
-  main.querySelectorAll(".shelf.row .grid").forEach(g => { g.addEventListener("scroll", () => rowNav(g), { passive: true }); rowNav(g); });
+  main.querySelectorAll(".sub.lane .grid").forEach(g => { g.addEventListener("scroll", () => rowNav(g), { passive: true }); rowNav(g); });
   fillCatMenu(allFilled, list.length, hiddenHere.size);
 }
 // 좌우 화살표: 끝에 닿으면 흐리게
+// 카테고리 안을 가로 영상 / 세로 영상(쇼츠·릴스) / 게시물로 나눔
+// 이름에 '세로'나 '가로'가 들어간 카테고리는 그 방향으로 통일
+function shape(i, cat) {
+  if (/세로/.test(cat)) return "v";
+  if (/가로/.test(cat)) return "h";
+  if (i.kind === "게시물") return "p";
+  if (i.kind === "쇼츠" || i.kind === "릴스") return "v";
+  return "h";
+}
+const SHAPE_NAME = { h: "가로 영상", v: "세로 영상", p: "게시물·카드뉴스" };
+function shelfHTML(cat, v, n, opts) {
+  const groups = ["h", "v", "p"].map(k => [k, v.filter(i => shape(i, cat) === k)]).filter(([, g]) => g.length);
+  const lane = catFilter === "all" ? " lane" : "";
+  const nav = label => `<div class="rownav"><button type="button" data-scroll="-1" aria-label="${esc(label)} 왼쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button><button type="button" data-scroll="1" aria-label="${esc(label)} 오른쪽으로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></div>`;
+  const title = `<h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>`;
+  const grid = g => `<div class="grid">${g.map(i => card(i, opts)).join("")}</div>`;
+  if (groups.length === 1) {
+    const [k, g] = groups[0];
+    return `<section class="shelf" id="cat-${n}"><div class="sub${k === "v" ? " portrait" : ""}${lane}"><div class="shelfhead">${title}${nav(cat)}</div>${grid(g)}</div></section>`;
+  }
+  return `<section class="shelf" id="cat-${n}"><div class="shelfhead">${title}</div><div class="subs">` +
+    groups.map(([k, g]) => `<div class="sub${k === "v" ? " portrait" : ""}${lane}"><div class="subhead"><h3>${SHAPE_NAME[k]} <span class="n">${g.length}</span></h3>${nav(cat + " " + SHAPE_NAME[k])}</div>${grid(g)}</div>`).join("") +
+    `</div></section>`;
+}
 function rowNav(g) {
-  const [l, r] = g.closest(".shelf").querySelectorAll(".rownav button");
+  const [l, r] = g.closest(".sub").querySelectorAll(".rownav button");
   if (!l) return;
   l.disabled = g.scrollLeft <= 2;
   r.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 2;
@@ -1220,7 +1246,7 @@ $("main").addEventListener("keydown", e => {
 $("main").addEventListener("click", e => {
   const sc = e.target.closest("[data-scroll]");
   if (sc) {
-    const g = sc.closest(".shelf").querySelector(".grid");
+    const g = sc.closest(".sub").querySelector(".grid");
     g.scrollBy({ left: Number(sc.dataset.scroll) * g.clientWidth * 0.9 });
     return;
   }
