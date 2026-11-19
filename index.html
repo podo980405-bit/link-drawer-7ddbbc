@@ -119,9 +119,11 @@ main .wrap { padding-block: 24px 64px; display: grid; gap: 36px; }
 .cats.editing button.chip::before { content: "⠿"; margin-right: 6px; color: var(--muted); }
 .cats.editing button.chip[aria-pressed="true"] { background: var(--surface); color: var(--fg); border-color: var(--line); font-weight: 400; }
 .cats.editing button.chip[aria-pressed="true"] span { color: var(--muted); }
-.cats button.chip.off { opacity: .5; text-decoration: line-through; }
-.cats.editing button.chip.off { opacity: .6; border-style: dashed; }
-.cats.editing button.chip.off::after { content: "숨김"; margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--danger); text-decoration: none; display: inline-block; }
+.cats.editing button.chip::after { content: "숨기기"; margin-left: 8px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); display: inline-block; }
+.cats.editing button.chip:hover::after { color: var(--danger); border-color: var(--danger); }
+.cats.editing button.chip.off { border-style: dashed; color: var(--muted); }
+.cats.editing button.chip.off span { text-decoration: line-through; }
+.cats.editing button.chip.off::after { content: "숨김 해제"; color: #fff; background: var(--accent); border-color: var(--accent); }
 .shelf h2 .hid { font-size: 12px; font-weight: 700; color: var(--danger); }
 .cats button.chip.dragging { opacity: .45; cursor: grabbing; }
 .ver { color: var(--muted); font-size: 12px; }
@@ -231,7 +233,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-4</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-5</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -252,7 +254,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
         </span></span>
       <button class="btn" type="button" id="installBtn" style="min-height:36px" hidden>앱으로 설치</button>
       <button class="btn ghost" type="button" id="syncBtn" aria-expanded="false">기기 동기화</button>
-      <button class="btn ghost" type="button" id="setBtn" aria-expanded="false">영상 요약 설정</button>
+      <button class="btn ghost" type="button" id="setBtn" aria-expanded="false">불러오기 설정</button>
       <button class="btn ghost" type="button" id="exportBtn">백업 저장</button>
       <label class="btn ghost" style="display:inline-flex;align-items:center;cursor:pointer">백업 불러오기<input type="file" id="importFile" accept="application/json" hidden></label>
     </div>
@@ -287,6 +289,18 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
       <span id="syncInfo" style="color:var(--muted)"></span>
     </div>
     <div class="settings" id="settings" hidden>
+      <strong>인스타·유튜브 게시물 불러오기 (내 중계 서버)</strong>
+      <span>인스타와 유튜브 게시물은 사이트가 직접 읽을 수 없어서 '중계 서버'가 대신 가져다 줘야 해요. 무료 공개 중계 서버는 자주 막혀서, Cloudflare에 <b>나만 쓰는 중계 서버</b>를 무료로 만들어 연결하는 걸 추천해요. 유튜브·인스타 주소만 중계해서 다른 용도로는 쓸 수 없어요.</span>
+      <div class="line"><input id="relayIn" type="url" placeholder="https://이름.계정.workers.dev" autocomplete="off" style="font-family:inherit"><button class="btn" type="button" id="saveRelay" style="min-height:36px">연결</button><button class="btn ghost" type="button" id="clearRelay">연결 끊기</button></div>
+      <span id="relayInfo" style="color:var(--muted)"></span>
+      <ol>
+        <li><a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">Cloudflare</a>에 무료로 가입하고 로그인해요.</li>
+        <li>왼쪽 메뉴 <b>Workers &amp; Pages</b>(작업자 및 페이지) → <b>Create</b>(만들기) → <b>Start with Hello World!</b>(Hello World로 시작) → <b>Deploy</b>(배포)를 눌러요.</li>
+        <li><b>Edit code</b>(코드 편집)를 눌러 원래 있던 코드를 모두 지우고, 아래 <b>중계 서버 코드 복사</b>로 복사한 코드를 붙여넣은 뒤 <b>Deploy</b>(배포)를 눌러요.</li>
+        <li>화면 위쪽의 <b>https://…workers.dev</b> 주소를 복사해서 위 칸에 붙여넣고 <b>연결</b>을 눌러요.</li>
+      </ol>
+      <div class="line"><button class="btn ghost" type="button" id="copyRelayCode">중계 서버 코드 복사</button></div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:6px 0">
       <strong>유튜브 영상 설명으로 요약 자동 채우기</strong>
       <span>무료 YouTube API 키를 넣으면 각 영상 설명을 읽어서 무슨 내용인지 짧게 적어 주고, 분류도 더 정확해져요. 키는 이 브라우저에만 저장돼요.</span>
       <div class="line"><input id="apiKey" type="password" placeholder="AIza로 시작하는 API 키" autocomplete="off"><button class="btn" type="button" id="saveKey" style="min-height:36px">저장</button><button class="btn ghost" type="button" id="clearKey">키 지우기</button></div>
@@ -403,11 +417,19 @@ function parse(raw) {
 
 // 인스타: 여러 방법을 차례로 시도
 //  1) Microlink 링크 미리보기  2) 인스타 '퍼가기(embed)' 페이지를 공개 프록시로 읽기
-const PROXIES = [
+// 내 중계 서버(Cloudflare)가 있으면 그걸 먼저, 없으면 공개 중계 서버
+const PUBLIC_PROXIES = [
   u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   u => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
   u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`
 ];
+const relayUrl = () => { try { return localStorage.getItem(KEY + ":relay") || ""; } catch { return ""; } };
+let PROXIES = [];
+function setProxies() {
+  const r = relayUrl().replace(/\/+$/, "");
+  PROXIES = r ? [u => `${r}/?url=${encodeURIComponent(u)}`, ...PUBLIC_PROXIES] : PUBLIC_PROXIES.slice();
+}
+setProxies();
 let igReasons = [];
 let igFail = { n: 0, why: "" }, postFail = { n: 0, why: "" };
 function splitCaption(caption) {
@@ -466,10 +488,10 @@ async function igEmbed(item) {
 }
 async function fetchIG(item) {
   igReasons = [];
-  let out = await igMicrolink(item);
+  let out = relayUrl() ? await igEmbed(item) : await igMicrolink(item);
   if (!out || !out.thumb) {
-    const e = await igEmbed(item);
-    if (e) out = { title: out?.title || e.title, author: out?.author || e.author, desc: out?.desc || e.desc, thumb: e.thumb || out?.thumb || "" };
+    const e = relayUrl() ? await igMicrolink(item) : await igEmbed(item);
+    if (e) out = { title: out?.title || e.title, author: out?.author || e.author, desc: out?.desc || e.desc, thumb: out?.thumb || e.thumb || "" };
   }
   if (!out) { igFail = { n: igFail.n + 1, why: igReasons.join(" / ") }; status("인스타 정보를 못 불러왔어요 · " + igFail.why); return null; }
   if (out.thumb) out.thumb = await shrink(out.thumb);
@@ -700,7 +722,7 @@ const Sync = {
   },
   pack() {
     // 인스타 썸네일 그림(용량 큼)은 빼고 올림. 다른 기기에서는 썸네일을 다시 받아 옴
-    return JSON.stringify({ v: 1, saved: Date.now(), deleted, catOrder, hiddenCats,
+    return JSON.stringify({ v: 1, saved: Date.now(), deleted, catOrder, hiddenCats, relay: { url: relayUrl(), at: Number((() => { try { return localStorage.getItem(KEY + ":relayAt"); } catch { return 0; } })() || 0) },
       items: items.map(i => (i.thumb || "").startsWith("data:") ? { ...i, thumb: `https://www.instagram.com/p/${i.id}/media/?size=l` } : i) });
   },
   merge(remote) {
@@ -728,6 +750,11 @@ const Sync = {
       catOrder = remote.catOrder;
       try { localStorage.setItem(KEY + ":catorder", JSON.stringify(catOrder)); } catch {}
     }
+    const myRelayAt = Number((() => { try { return localStorage.getItem(KEY + ":relayAt"); } catch { return 0; } })() || 0);
+    if (remote.relay && (remote.relay.at || 0) > myRelayAt) {
+      try { remote.relay.url ? localStorage.setItem(KEY + ":relay", remote.relay.url) : localStorage.removeItem(KEY + ":relay"); localStorage.setItem(KEY + ":relayAt", String(remote.relay.at)); } catch {}
+      setProxies();
+    }
     if (remote.hiddenCats && (remote.hiddenCats.at || 0) > (hiddenCats.at || 0)) {
       orderChanged = orderChanged || JSON.stringify(remote.hiddenCats.list) !== JSON.stringify(hiddenCats.list);
       hiddenCats = remote.hiddenCats;
@@ -744,7 +771,7 @@ const Sync = {
       if (id) { try { remote = await this.pull(id); } catch (e) { if (e.status === 404) { this.setGist(""); id = await this.findGist(); if (id) remote = await this.pull(id); } else throw e; } }
       if (remote && this.merge(remote)) { save(true); render(); }
       const body = this.pack();
-      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted) && JSON.stringify(remote.catOrder || null) === JSON.stringify(catOrder || null) && JSON.stringify(remote.hiddenCats || null) === JSON.stringify(hiddenCats);
+      const remoteSame = remote && JSON.stringify(remote.items) === JSON.stringify(JSON.parse(body).items) && JSON.stringify(remote.deleted || {}) === JSON.stringify(deleted) && JSON.stringify(remote.catOrder || null) === JSON.stringify(catOrder || null) && JSON.stringify(remote.hiddenCats || null) === JSON.stringify(hiddenCats) && JSON.stringify(remote.relay || null) === JSON.stringify(JSON.parse(body).relay);
       if (!id) {
         const g = await this.api("/gists", { method: "POST", body: JSON.stringify({ public: false, description: "링크 서랍 동기화 (지우지 마세요)", files: { [SYNC_FILE]: { content: body } } }) });
         this.setGist(g.id);
@@ -907,10 +934,12 @@ function render() {
   }
   if (!list.length && baseList.length) {
     main.innerHTML = `<div class="empty"><strong>숨긴 카테고리에만 링크가 있어요</strong><span>숨긴 카테고리 ${hiddenHere.size}개: ${[...hiddenHere].map(esc).join(", ")}</span>
-      <button class="btn ghost" type="button" data-showhidden>숨긴 카테고리 보기</button></div>`;
+      <span>'카테고리 ▾ → 순서 바꾸기 · 숨기기'에서 숨김 해제할 수 있어요.</span>
+      <button class="btn ghost" type="button" data-catedit>숨김 해제하러 가기</button></div>`;
+    fillCatMenu([], 0, hiddenHere.size);
     return;
   }
-  if (!list.length) { main.innerHTML = `<div class="empty"><strong>${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}'를 찾지 못했어요</strong><span>검색 범위를 '제목+내용+이름'으로 넓히거나 플랫폼 필터를 '전체'로 바꿔 보세요.</span></div>`; return; }
+  if (!list.length) { main.innerHTML = `<div class="empty"><strong>${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}'를 찾지 못했어요</strong><span>검색 범위를 '제목+내용+이름'으로 넓히거나 플랫폼 필터를 '전체'로 바꿔 보세요.</span></div>`; fillCatMenu([], 0, hiddenHere.size); return; }
 
   const groups = new Map();
   for (const c of categories()) groups.set(c, []);
@@ -927,7 +956,7 @@ function render() {
     (q ? `<div class="found">${esc(SCOPE_NAME[scope])}에서 '${esc(query.trim())}' 검색 결과 <b>${list.length}</b>개</div>` : "") +
     (!catEdit ? "" : `<nav class="cats editing" aria-label="카테고리 순서·숨기기">${allFilled.map(([c, v]) => `<button type="button" class="chip${isHidden(c) ? " off" : ""}" data-cat="${esc(c)}" aria-pressed="${catFilter === c}"${catEdit ? ` aria-label="${esc(c)} ${isHidden(c) ? "숨김 상태, 누르면 보이기" : "누르면 숨기기"}"` : ""}>${esc(c)}<span>${v.length}</span></button>`).join("")}` +
     (catEdit
-      ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, <b>한 번 누르면</b> 숨기기 ↔ 보이기가 바뀌어요. 숨긴 카테고리는 '숨김'으로 표시돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
+      ? `<button type="button" class="tool" data-catedit>완료</button>${customOrder() ? `<button type="button" class="tool" data-catreset>개수 많은 순으로 되돌리기</button>` : ""}<span class="hint"><b>끌어서</b> 순서를 바꾸고, 버튼을 <b>한 번 누르면</b> <b>숨기기</b> / <b>숨김 해제</b>가 돼요. 키보드는 ← → 키로 옮기고 Enter로 숨겨요. 바꾼 설정은 다른 기기에도 똑같이 맞춰져요.</span>`
       : "") + `</nav>`) +
     filled.map(([cat, v], n) => `<section class="shelf${/세로/.test(cat) ? " portrait" : ""}${catFilter === "all" ? " row" : ""}" id="cat-${n}">
       <div class="shelfhead"><h2>${esc(cat)} <span class="n">${v.length}</span>${isHidden(cat) ? ` <span class="hid">숨김</span>` : ""}</h2>
@@ -951,8 +980,7 @@ function fillCatMenu(allFilled, total, hiddenN) {
     `<li role="option" data-cat="all" aria-selected="${catFilter === "all"}"><span>전체</span><span class="n">${total}</span></li>` +
     allFilled.map(([c, v]) => `<li role="option" data-cat="${esc(c)}" aria-selected="${catFilter === c}"${isHidden(c) ? ' class="off"' : ""}><span>${esc(c)}</span><span class="n">${v.length}</span></li>`).join("") +
     `<li class="sep" aria-hidden="true"></li>` +
-    `<li class="act" data-catedit>${catEdit ? "순서·숨기기 끝내기" : "순서 바꾸기 · 숨기기"}</li>` +
-    (hiddenN ? `<li class="act" data-showhidden>${showHidden ? "숨긴 카테고리 다시 숨기기" : `숨긴 카테고리 ${hiddenN}개 보기`}</li>` : "");
+    `<li class="act" data-catedit>${catEdit ? "순서·숨기기 끝내기" : `순서 바꾸기 · 숨기기${hiddenN ? ` (숨김 ${hiddenN})` : ""}`}</li>`;
 }
 function fit(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; }
 
@@ -1311,6 +1339,43 @@ $("importFile").addEventListener("change", async e => {
   e.target.value = "";
 });
 
+$("saveRelay").addEventListener("click", async () => {
+  let v = $("relayIn").value.trim();
+  if (v && !/^https?:\/\//.test(v)) v = "https://" + v;
+  try { new URL(v); } catch { $("relayInfo").textContent = "주소를 확인해 주세요. 예: https://link-relay.내계정.workers.dev"; return; }
+  $("relayInfo").textContent = "중계 서버 확인 중…";
+  try {
+    const r = await fetch(v.replace(/\/+$/, "") + "/");
+    const t = await r.text();
+    if (!r.ok || !t.includes("링크 서랍 중계 서버")) throw new Error(r.status);
+  } catch {
+    $("relayInfo").textContent = "이 주소에서 링크 서랍 중계 서버를 찾지 못했어요. 코드를 붙여넣고 Deploy(배포)까지 눌렀는지, 주소가 맞는지 확인해 주세요.";
+    return;
+  }
+  try { localStorage.setItem(KEY + ":relay", v); localStorage.setItem(KEY + ":relayAt", String(Date.now())); } catch {}
+  setProxies(); Sync.soon();
+  $("relayInfo").textContent = "연결됐어요. 비어 있던 인스타·유튜브 게시물을 다시 불러오는 중…";
+  const n = await retryMissing(true);
+  $("relayInfo").textContent = `연결됐어요. 게시물 ${n}개의 정보를 새로 채웠어요.`;
+  status(`중계 서버를 연결했어요. 게시물 ${n}개의 정보를 새로 채웠어요.`);
+});
+$("clearRelay").addEventListener("click", () => {
+  try { localStorage.removeItem(KEY + ":relay"); localStorage.setItem(KEY + ":relayAt", String(Date.now())); } catch {}
+  setProxies(); $("relayIn").value = ""; $("relayInfo").textContent = "중계 서버 연결을 끊었어요."; Sync.soon();
+});
+$("copyRelayCode").addEventListener("click", async () => {
+  const b = $("copyRelayCode");
+  try {
+    const code = await (await fetch("relay-worker.js", { cache: "no-store" })).text();
+    await navigator.clipboard.writeText(code);
+    b.textContent = "복사됨! Cloudflare 코드 편집 화면에 붙여넣으세요";
+  } catch {
+    b.textContent = "복사가 막혔어요. 아래 주소의 코드를 전부 복사해 주세요";
+    $("relayInfo").innerHTML = '코드 주소: <a href="relay-worker.js" target="_blank" rel="noopener">relay-worker.js 열기</a>';
+  }
+  setTimeout(() => { b.textContent = "중계 서버 코드 복사"; }, 4000);
+});
+
 $("syncBtn").addEventListener("click", () => {
   const box = $("syncPanel"); box.hidden = !box.hidden;
   $("syncBtn").setAttribute("aria-expanded", String(!box.hidden));
@@ -1338,7 +1403,7 @@ setInterval(() => { if (document.visibilityState === "visible") Sync.run(); }, 6
 $("setBtn").addEventListener("click", () => {
   const box = $("settings"); box.hidden = !box.hidden;
   $("setBtn").setAttribute("aria-expanded", String(!box.hidden));
-  if (!box.hidden) { $("apiKey").value = getKey(); $("apiKey").focus(); }
+  if (!box.hidden) { $("apiKey").value = getKey(); $("relayIn").value = relayUrl(); }
 });
 $("saveKey").addEventListener("click", async () => {
   const k = $("apiKey").value.trim();
@@ -1373,6 +1438,27 @@ if (changed) save();
 render();
 lastFp = new Map(items.map(i => [keyOf(i), fp(i)]));
 
+// 제목·사진을 못 받은 인스타·유튜브 게시물을 다시 시도
+async function retryMissing(force) {
+  let n = 0;
+  for (const it of items.filter(i => (force ? !i.title || !(i.thumb || "").startsWith("data:") : !i.title) &&
+      ((i.platform === "ig" && (force || !i.igTried2)) || (i.kind === "게시물" && i.platform === "yt" && (force || !i.postTried2))))) {
+    if (it.platform === "ig") it.igTried2 = true; else it.postTried2 = true;
+    const info = it.platform === "ig" ? await fetchIG(it) : await fetchYTPost(it);
+    if (info) {
+      n++;
+      if (info.title && (!it.title || force)) it.title = it.title || info.title;
+      if (info.author && !/^@?$/.test(info.author)) it.author = it.author || info.author;
+      if (info.thumb) it.thumb = info.thumb;
+      if (info.desc && !it.descEdited && !it.desc) it.desc = info.desc;
+      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
+    }
+    save(); render();
+  }
+  if (n) translateAll();
+  return n;
+}
+
 // 앱 설치(홈 화면에 추가)용
 if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 
@@ -1405,18 +1491,7 @@ const shared = (() => {
   }
   await Sync.run();
   await fetchYTDetails(items);
-  for (const it of items.filter(i => !i.title && ((i.platform === "ig" && !i.igTried2) || (i.kind === "게시물" && i.platform === "yt" && !i.postTried2)))) {
-    if (it.platform === "ig") it.igTried2 = true; else it.postTried2 = true;
-    const info = it.platform === "ig" ? await fetchIG(it) : await fetchYTPost(it);
-    if (info) {
-      if (info.title) it.title = info.title;
-      if (info.author) it.author = info.author;
-      if (info.thumb) it.thumb = info.thumb;
-      if (info.desc && !it.descEdited && !it.desc) it.desc = info.desc;
-      if (!it.manual) it.category = classify(`${it.title} ${it.author} ${it.desc || ""}`, it.ytCat, it);
-    }
-    save(); render();
-  }
+  await retryMissing();
   translateAll();
 })();
 })();
