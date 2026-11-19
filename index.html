@@ -231,7 +231,7 @@ section.shelf { display: grid; gap: 14px; scroll-margin-top: 250px; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-3</span></div>
+    <div class="brand"><h1>링크 서랍</h1><span class="count" id="total"></span><span class="syncdot" id="syncDot" data-s="off" title="기기 동기화 상태"><i></i><span id="syncText">동기화 꺼짐</span></span><span class="ver">버전 11.19-4</span></div>
     <form class="add" id="addForm">
       <textarea id="links" rows="1" placeholder="유튜브·인스타 링크를 붙여넣으세요 (여러 개는 줄바꿈 또는 띄어쓰기로 구분)"></textarea>
       <button class="btn" type="submit">정리하기</button>
@@ -319,6 +319,7 @@ const RULES = {
   "클로드": ["클로드","claude","클로드 코드","클로드코드","claude code","anthropic","앤트로픽","앤스로픽"],
   "코덱스": ["코덱스","codex","openai codex","codex cli"],
   "제미나이": ["제미나이","제미니","gemini","gemini cli","nano banana","나노바나나","나노 바나나"],
+  "ComfyUI": ["comfyui","comfy ui","comfy-ui","컴피ui","컴피 ui","컴피유아이","컴피 유아이","comfy workflow","컴피 워크플로우"],
   "IT·테크": ["아이폰","iphone","갤럭시","galaxy","맥북","macbook","ipad","아이패드","언박싱","unboxing","테크","tech","ai","chatgpt","개발","코딩","coding","programming","프로그래밍","노트북","laptop","키보드","keyboard","카메라","camera","애플","apple","삼성","samsung","스마트폰","gadget"],
   "뷰티·패션": ["메이크업","makeup","화장","뷰티","beauty","패션","fashion","ootd","코디","스킨케어","skincare","헤어","hair","네일","nail","룩북","lookbook","하울","haul","향수","perfume","올리브영","쿠션","립"],
   "영화·드라마·예능": ["영화","movie","film","드라마","drama","예능","예고편","trailer","teaser","넷플릭스","netflix","디즈니","애니","anime","결말","줄거리","리뷰 영화","시즌","episode","ep.","런닝맨","무한도전","유퀴즈","나혼자산다"],
@@ -343,7 +344,7 @@ const YT_CAT = { 10: "음악", 20: "게임", 17: "운동·스포츠", 19: "여�
 // 직캠은 화면 방향으로 나눔: 쇼츠·릴스나 '세로'가 들어가면 세로, 아니면 가로
 const FANCAM = /직캠|fancam|fan cam|focus ?cam|페이스캠|face ?cam|세로캠|가로캠|입덕직캠|직찍/i;
 // AI 도구 이름이 나오면 일반 IT·테크보다 우선
-const AI_TOOLS = ["클로드", "코덱스", "제미나이"];
+const AI_TOOLS = ["클로드", "코덱스", "제미나이", "ComfyUI"];
 function classify(text, ytCat, it) {
   const t = (text || "").toLowerCase();
   if (FANCAM.test(t)) {
@@ -408,7 +409,7 @@ const PROXIES = [
   u => `https://corsproxy.io/?url=${encodeURIComponent(u)}`
 ];
 let igReasons = [];
-let igFail = { n: 0, why: "" };
+let igFail = { n: 0, why: "" }, postFail = { n: 0, why: "" };
 function splitCaption(caption) {
   caption = (caption || "").replace(/\s+/g, " ").trim();
   let title = caption.split(/(?<=[.!?。！？])\s|\s#/)[0].slice(0, 80);
@@ -495,22 +496,49 @@ async function toSmall(blob) {
   }
 }
 
+// 유튜브 게시물: 페이지 속 데이터(ytInitialData)에서 글·채널·사진을 꺼냄. 안 되면 og 태그로.
+const GENERIC_YT = /Enjoy the videos and music|좋아하는 동영상과 음악|YouTube에서 마음에 드는|Share your videos with friends/i;
+function jstr(x) { try { return JSON.parse('"' + x + '"'); } catch { return x; } }
+function parseYTPost(html) {
+  const i = html.indexOf('"backstagePostRenderer"');
+  if (i < 0) return null;
+  const seg = html.slice(i, i + 60000);
+  const author = jstr((seg.match(/"authorText":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/) || [])[1] || "");
+  const runs = (seg.match(/"contentText":\{"runs":\[(.*?)\]\}/) || [])[1] || "";
+  const text = [...runs.matchAll(/"text":"((?:[^"\\]|\\.)*)"/g)].map(m => jstr(m[1])).join("");
+  let thumb = "";
+  const img = seg.match(/"backstageImageRenderer":\{"image":\{"thumbnails":\[(.*?)\]/);
+  if (img) { const urls = [...img[1].matchAll(/"url":"((?:[^"\\]|\\.)*)"/g)].map(m => jstr(m[1])); thumb = urls[urls.length - 1] || ""; }
+  if (!thumb) { const v = seg.match(/"videoId":"([\w-]{11})"/); if (v) thumb = `https://i.ytimg.com/vi/${v[1]}/hqdefault.jpg`; }
+  if (thumb.startsWith("//")) thumb = "https:" + thumb;
+  return text || thumb ? { text, author, thumb } : null;
+}
 async function fetchYTPost(item) {
-  for (const px of PROXIES) {
+  const why = [];
+  for (const [n, px] of PROXIES.entries()) {
     try {
-      const r = await fetch(px(item.url)); if (!r.ok) continue;
+      const r = await fetch(px(item.url + (item.url.includes("?") ? "&" : "?") + "hl=ko&gl=KR"));
+      if (!r.ok) { why.push(`프록시${n + 1}: ${r.status}`); continue; }
       const html = await r.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const meta = n => doc.querySelector(`meta[property="${n}"], meta[name="${n}"]`)?.getAttribute("content") || "";
-      const text = (meta("og:description") || meta("description")).trim();
-      let thumb = meta("og:image");
-      if (/\/img\/desktop\/yt_|yt_1200/.test(thumb)) thumb = ""; // 유튜브 기본 로고 이미지는 무시
-      const author = (meta("og:title") || "").replace(/\s*-\s*YouTube\s*$/i, "").trim();
-      if (!text && !thumb) continue;
-      const { title, desc } = splitCaption(text);
-      return { title: title || author, author, desc, thumb: thumb ? await shrink(thumb) : "" };
-    } catch {}
+      if (/consent\.youtube\.com|before you continue/i.test(html) && !html.includes("backstagePostRenderer")) { why.push(`프록시${n + 1}: 유튜브 동의 화면`); continue; }
+      let got = parseYTPost(html);
+      if (!got) {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const meta = k => doc.querySelector(`meta[property="${k}"], meta[name="${k}"]`)?.getAttribute("content") || "";
+        let text = (meta("og:description") || meta("description")).trim();
+        if (GENERIC_YT.test(text)) text = "";
+        let thumb = meta("og:image");
+        if (/\/img\/desktop\/yt_|yt_1200|youtube_social/.test(thumb)) thumb = "";
+        const author = (meta("og:title") || "").replace(/\s*-\s*YouTube\s*$/i, "").trim();
+        if (text || thumb) got = { text, author: /^youtube$/i.test(author) ? "" : author, thumb };
+      }
+      if (!got) { why.push(`프록시${n + 1}: 게시물 내용 없음`); continue; }
+      const { title, desc } = splitCaption(got.text);
+      return { title: title || got.author || "유튜브 게시물", author: got.author, desc, thumb: got.thumb ? await shrink(got.thumb) : "" };
+    } catch { why.push(`프록시${n + 1}: 연결 실패`); }
   }
+  postFail = { n: postFail.n + 1, why: why.join(" / ") };
+  status("유튜브 게시물 정보를 못 불러왔어요 · " + postFail.why);
   return null;
 }
 
@@ -854,8 +882,9 @@ async function addLinks(text) {
   }));
   save(); render();
   if (added) status(`${added}개 정리 완료` + (dup ? ` · 중복 ${dup}개 건너뜀` : "") +
-    (igFail.n ? ` · 인스타 ${igFail.n}개는 정보를 못 불러왔어요 (${igFail.why})` : ""));
-  igFail = { n: 0, why: "" };
+    (igFail.n ? ` · 인스타 ${igFail.n}개는 정보를 못 불러왔어요 (${igFail.why})` : "") +
+    (postFail.n ? ` · 유튜브 게시물 ${postFail.n}개는 정보를 못 불러왔어요 (${postFail.why})` : ""));
+  igFail = { n: 0, why: "" }; postFail = { n: 0, why: "" };
   await fetchYTDetails(items.filter(x => fresh.some(f => f.platform === x.platform && f.id === x.id)));
   translateAll();
 }
@@ -1332,12 +1361,12 @@ for (const it of items) if (!it.manual && it.category === UNSORTED) {
 }
 // 클로드·코덱스·제미나이 분류가 새로 생겨서, 직접 고르지 않은 링크 중 해당하는 건 한 번 옮겨 줌
 try {
-  if (localStorage.getItem(KEY + ":rules") !== "ai1") {
+  if (localStorage.getItem(KEY + ":rules") !== "ai2") {
     for (const it of items) if (!it.manual) {
       const c = classify(`${it.title} ${it.titleKo || ""} ${it.author} ${it.desc || ""} ${it.descKo || ""}`, it.ytCat, it);
       if (AI_TOOLS.includes(c) && it.category !== c) { it.category = c; changed = true; }
     }
-    localStorage.setItem(KEY + ":rules", "ai1");
+    localStorage.setItem(KEY + ":rules", "ai2");
   }
 } catch {}
 if (changed) save();
@@ -1376,9 +1405,9 @@ const shared = (() => {
   }
   await Sync.run();
   await fetchYTDetails(items);
-  for (const it of items.filter(i => i.platform === "ig" && !i.igTried2 && !i.title)) {
-    it.igTried2 = true;
-    const info = await fetchIG(it);
+  for (const it of items.filter(i => !i.title && ((i.platform === "ig" && !i.igTried2) || (i.kind === "게시물" && i.platform === "yt" && !i.postTried2)))) {
+    if (it.platform === "ig") it.igTried2 = true; else it.postTried2 = true;
+    const info = it.platform === "ig" ? await fetchIG(it) : await fetchYTPost(it);
     if (info) {
       if (info.title) it.title = info.title;
       if (info.author) it.author = info.author;
